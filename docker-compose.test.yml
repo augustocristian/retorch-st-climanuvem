@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:15
+    container_name: climanuvem_test_db
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: climanuvem_test
+    networks:
+      - climanuvem_test_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./epi-climanuvem/backend
+    container_name: climanuvem_test_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://testuser:testpassword@db:5432/climanuvem_test
+      - TEST_MODE=true
+      - TEST_TOKEN=test-token-climanuvem
+      - TEST_USER_UID=test-user-e2e
+      - FIREBASE_KEY_PATH=
+      - DISABLE_WORKER=true
+      - OLLAMA_URL=http://localhost:11434/api/generate
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - climanuvem_test_net
+
+  frontend:
+    build:
+      context: ./epi-climanuvem/frontend
+      args:
+        # Selenium runs on the host machine, so localhost:8000 reaches the backend
+        # through Docker's port mapping.
+        - EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
+    container_name: climanuvem_test_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - climanuvem_test_net
+
+networks:
+  climanuvem_test_net:

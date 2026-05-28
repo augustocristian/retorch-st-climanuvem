@@ -1,0 +1,56 @@
+{
+  "backend": {
+    "hierarchyParent": [],
+    "replaceable": [],
+    "elasticityModel": {
+      "elasticityID": "elasModelBackend",
+      "elasticity": 10,
+      "elasticityCost": 20.0
+    },
+    "resourceType": "LOGICAL",
+    "resourceID": "backend",
+    "minimalCapacities": [
+      {
+        "name": "memory",
+        "quantity": 0.25
+      },
+      {
+        "name": "processor",
+        "quantity": 0.5
+      },
+      {
+        "name": "storage",
+        "quantity": 1.0
+      }
+    ],
+    "dockerImage": "backend;climanuvem/backend"
+  },
+  "analysis": {
+    "hierarchyParent": [
+      "db"
+    ],
+    "replaceable": [],
+    "elasticityModel": {
+      "elasticityID": "elasModelAnalysis",
+      "elasticity": 1,
+      "elasticityCost": 5.0
+    },
+    "resourceType": "LOGICAL",
+    "resourceID": "analysis",
+    "minimalCapacities": [
+      {
+        "name": "memory",
+        "quantity": 0.048
+      },
+      {
+        "name": "processor",
+        "quantity": 0.25
+      },
+      {
+        "name": "storage",
+        "quantity": 0.5
+      }
+    ],
+    "dockerImage": "analysis;climanuvem/backend"
+  }
+}
