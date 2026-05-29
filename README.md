@@ -1,60 +1,137 @@
-[![Build Status](https://github.com/giis-uniovi/retorch-st-petclinic/actions/workflows/test.yml/badge.svg)](https://github.com/giis-uniovi/retorch-st-petclinic/actions)
+# EPI-ClimaNuvem — E2E Test Suite
 
-# RETORCH PetClinic End-to-End Test Suite
+End-to-end test suite for the [EPI-ClimaNuvem](https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem) application, built with the [RETORCH](https://github.com/giis-uniovi/retorch) framework.
 
-This repository contains a detached fork of
-[spring-petclinic-microservices](https://github.com/giis-uniovi/spring-petclinic-microservices) and an
-End-to-End Test suite that are used as demonstrator of the [RETORCH Framework](https://github.com/giis-uniovi/retorch).
-Spring PetClinic Microservices is a sample reference application based on the
-[original Spring PetClinic](https://github.com/spring-petclinic/spring-petclinic-microservices), rebuilt as a
-distributed microservices architecture using Spring Cloud, Spring Cloud Gateway, Eureka, Zipkin, Grafana and Prometheus,
-all running in Docker containers.
+Covers two test layers:
+- **API tests** — HTTP-level tests against the FastAPI backend (no browser needed)
+- **E2E tests** — Selenium + Page Object tests that drive the Expo web frontend in Chrome
 
-## Deployment instructions
+---
 
-### Prerequisites
+## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows / macOS) or Docker Engine (Linux)
-- Git
+| Tool | Minimum version |
+|---|---|
+| Java (JDK) | 8 |
+| Maven | 3.8 |
+| Docker + Docker Compose | 24 |
+| Git | any recent |
+| Chrome | any recent (for E2E tests) |
 
-### Local deployment — Windows
+---
 
-```powershell
-# Start the SUT on the default port (8080)
-.\deploy-local.ps1
+## Quick start
 
-# Start on a custom port
-.\deploy-local.ps1 -Port 9090
+### 1 — Deploy the SUT
 
-# Tear down all containers and volumes
-.\deploy-local.ps1 -Down
-```
-
-### Local deployment — Linux / macOS
+The deploy script clones the SUT from GitLab on first run, builds the Docker images, and waits until both the backend and frontend are ready.
 
 ```bash
-# Make the script executable (first time only)
-chmod +x deploy-local.sh
-
-# Start the SUT on the default port (8080)
+# Linux / macOS
 ./deploy-local.sh
 
-# Start on a custom port
-./deploy-local.sh --port 9090
-
-# Tear down all containers and volumes
-./deploy-local.sh --down
+# Windows PowerShell
+./deploy-local.ps1
 ```
 
-Both scripts handle all setup steps automatically:
-clone the `spring-petclinic-microservices` repository (required to build the Grafana and Prometheus images),
-create the `jenkins_network` Docker network if it does not exist, build the images, start the containers and
-wait up to 200 seconds for the application to be ready.
-Once the SUT is up, it is accessible at `http://localhost:<port>` (default `http://localhost:5000`).
+Services started:
 
-### CI deployment — Jenkins
+| Service | URL |
+|---|---|
+| Backend (FastAPI) | http://localhost:8000 |
+| Frontend (Expo web) | http://localhost:5173 |
 
-The `Jenkinsfile` at the repository root defines the full pipeline used by the on-premises Jenkins instance.
-It relies on the lifecycle scripts located in `.retorch/scripts/` and the environment files in
-`.retorch/envfiles/`. The GitHub Actions workflow (`.github/workflows/test.yml`) only compiles the project;
-the actual test execution is delegated to Jenkins.
+### 2 — Run the tests
+
+```bash
+# All tests
+mvn test
+
+# API tests only
+mvn test -Dtest="TestApi*"
+
+# E2E browser tests only (opens Chrome)
+mvn test -Dtest="TestWelcomeScreen,TestLoginForm,TestHomeScreen,TestCaptureScreen"
+
+# E2E tests headless (for CI or no monitor)
+mvn test -Dtest="TestWelcomeScreen,TestLoginForm,TestHomeScreen,TestCaptureScreen" -DCI=true
+
+# Single class
+mvn test -Dtest=TestApiCancel
+```
+
+### 3 — Tear down
+
+```bash
+./deploy-local.sh --down    # Linux / macOS
+./deploy-local.ps1 -Down    # Windows PowerShell
+```
+
+---
+
+## Configuration
+
+All defaults work out of the box. Override via `-D` system properties or environment variables:
+
+| Property | Default | Description |
+|---|---|---|
+| `SUT_URL` | `http://localhost:8000` | Backend base URL |
+| `FRONTEND_URL` | `http://localhost:5173` | Frontend base URL (E2E tests) |
+| `TEST_TOKEN` | `test-token-climanuvem` | Auth token injected by API tests |
+| `TJOB_NAME` | `local` | Separates build outputs in CI |
+| `CI` | _(unset)_ | Set to `true` for headless Chrome |
+
+---
+
+## Test architecture
+
+```
+src/test/java/epigijon/climanuvem/e2e/functional/
+├── common/
+│   ├── BaseApiClass.java       HTTP helpers, multipart upload, JSON fixtures
+│   └── BaseLoggedClass.java    Browser lifecycle; onWelcomePage() / loginAsGuest()
+├── pages/                      Page Object Model — one class per screen
+│   ├── BasePage.java           Shared wait, click, fill, isPresent helpers
+│   ├── WelcomePage.java
+│   ├── LoginPage.java
+│   ├── RegisterPage.java
+│   ├── HomePage.java
+│   └── CapturePage.java
+└── tests/
+    ├── api/                    HTTP-level tests (no browser)
+    │   ├── TestApiPing.java
+    │   ├── TestApiAuth.java
+    │   ├── TestApiAnalysis.java
+    │   ├── TestApiHistory.java
+    │   ├── TestApiDelete.java
+    │   └── TestApiCancel.java
+    └── e2e/                    Selenium tests (Page Object pattern)
+        ├── TestWelcomeScreen.java
+        ├── TestLoginForm.java
+        ├── TestHomeScreen.java
+        └── TestCaptureScreen.java
+```
+
+Page object navigation is typed — every action returns the next screen:
+
+```java
+// No auth required
+WelcomePage welcome = onWelcomePage();
+LoginPage   login   = welcome.clickLoginButton();
+RegisterPage reg    = login.clickRegisterLink();
+
+// Authenticated flow
+HomePage    home    = loginAsGuest();          // Firebase anonymous auth
+CapturePage capture = home.clickAnalyzeImage();
+WelcomePage back    = home.clickLogout();
+```
+
+---
+
+## Test mode
+
+The backend is started with `TEST_MODE=true` and `DISABLE_WORKER=true` (see `docker-compose.test.yml`):
+
+- **Any Bearer token** is accepted — API tests use a fixed token; E2E tests use real Firebase anonymous tokens.
+- **Firebase is not initialised** — no service account key is needed.
+- **Ollama worker is disabled** — analyses stay in `analyzing` state, making cancel tests deterministic.

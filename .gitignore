@@ -1,13 +1,12 @@
-target
-reports
+target/
+reports/
 pom.xml.versionsBackup
 TESTS-TestSuites.xml
 *.db
 */dat/out
 
-.idea
-# to allow each developer customize sonarlint
+.idea/
 org.sonarlint.eclipse.core.prefs
 
-# Cloned sut
-.epi-climanuvem
+# Cloned SUT — populated by deploy-local.sh / deploy-local.ps1
+.epi-climanuvem/*

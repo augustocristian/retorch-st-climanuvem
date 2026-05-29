@@ -13,7 +13,7 @@
             <AppenderRef ref="ConsoleAppender"/>
             <AppenderRef ref="FileAppender"/>
         </Root>
-    	<Logger name="giis" level="debug" additivity="false">
+    	<Logger name="epigijon" level="debug" additivity="false">
             <AppenderRef ref="ConsoleAppender"/>
             <AppenderRef ref="FileAppender"/>
     	</Logger>

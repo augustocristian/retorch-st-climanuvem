@@ -3,7 +3,7 @@
 This file gives Claude Code the full context needed to work in this repository without re-deriving it each session.
 
 > **MANDATORY RULE — ALWAYS UPDATE THIS FILE**
-> Every time you add, remove, or rename a test class, change a package name, modify the API surface, alter backend configuration, add a dependency, or change deployment behaviour, you **must** update the relevant sections of this file in the same operation. Never leave CLAUDE.md describing state that no longer matches the code. If a section becomes outdated it is worse than no documentation.
+> Every time you add, remove, or rename a test class or page object, change a package name, modify the API surface, alter backend configuration, add a dependency, or change deployment behaviour, you **must** update the relevant sections of this file in the same operation. Never leave CLAUDE.md describing state that no longer matches the code. If a section becomes outdated it is worse than no documentation.
 
 ---
 
@@ -12,7 +12,7 @@ This file gives Claude Code the full context needed to work in this repository w
 End-to-end test suite for **EPI-ClimaNuvem**, a FastAPI + PostgreSQL backend and React Native/Expo web frontend that classifies cloud types in photographs using an Ollama LLM. The suite is orchestrated with the [RETORCH](https://github.com/giis-uniovi/retorch) framework and covers two complementary layers:
 
 - **API tests** — HTTP-level tests that call the REST endpoints directly (no browser, no Ollama required).
-- **Browser (E2E) tests** — Selenium WebDriver tests that drive the Expo web frontend through Chrome.
+- **Browser (E2E) tests** — Selenium WebDriver tests that drive the Expo web frontend through Chrome, using the **Page Object pattern**.
 
 ---
 
@@ -36,13 +36,13 @@ The SUT is **not committed** to this repository. The deploy scripts clone it aut
 Both scripts:
 1. Clone `epi-climanuvem` from GitLab if not already present
 2. Build `docker-compose.test.yml`
-3. Start the services and poll `GET /ping` until ready (up to 120 s)
+3. Start all services and wait for backend (`/ping`) and frontend (HTTP 200)
 
 To stop:
 
 ```bash
-./deploy-local.sh --down        # Linux
-./deploy-local.ps1 -Down        # Windows
+./deploy-local.sh --down
+./deploy-local.ps1 -Down
 ```
 
 ### Architecture
@@ -53,7 +53,7 @@ To stop:
 | **backend** | climanuvem_test_backend | **8000** | FastAPI REST API |
 | **frontend** | climanuvem_test_frontend | **5173** | Expo web build (React Native for Web) |
 
-Ollama is omitted from the test compose (`DISABLE_WORKER=true`) — no GPU required.
+Ollama is omitted (`DISABLE_WORKER=true`) — no GPU required.
 
 ### REST API surface
 
@@ -91,28 +91,28 @@ analysis_cloud (id, analysis_id→analysis, cloud_id→clouds, confidence, box_y
 
 `status` values: `'analyzing'` | `'completed'` | `'cancelled'`
 
-12 cloud types are seeded on first startup (Cirros, Cúmulos, Estratos, …).
-
 ---
 
-## Test-mode authentication
+## Test-mode configuration
 
-The SUT uses Firebase ID tokens in production. For E2E tests a **test-mode bypass** is enabled via environment variables in `docker-compose.test.yml`:
+The SUT uses Firebase ID tokens in production. For testing, environment variables in `docker-compose.test.yml` activate a bypass:
 
 | Variable | Value | Effect |
 |---|---|---|
-| `TEST_MODE` | `true` | Firebase SDK is not initialized; auth checks accept the test token |
-| `TEST_TOKEN` | `test-token-climanuvem` | The static Bearer token accepted by the backend |
-| `TEST_USER_UID` | `test-user-e2e` | The `uid` injected into every authenticated request |
-| `DISABLE_WORKER` | `true` | The background Ollama worker does not start; analyses stay in `analyzing` |
+| `TEST_MODE` | `true` | Firebase SDK is not initialized; **any** Bearer token is accepted |
+| `TEST_TOKEN` | `test-token-climanuvem` | Token used by API tests |
+| `TEST_USER_UID` | `test-user-e2e` | UID injected for all authenticated requests |
+| `DISABLE_WORKER` | `true` | Ollama worker does not start; analyses stay in `analyzing` |
 | `FIREBASE_KEY_PATH` | _(empty)_ | Skipped in test mode |
 
-The Java test suite reads `TEST_TOKEN` from `src/test/resources/test.properties` (or the `TEST_TOKEN` system/env property in CI) and injects it as `Authorization: Bearer {token}` on every authenticated request.
+`TEST_MODE=true` accepts **any** non-empty Bearer token so that:
+- API tests send the fixed `TEST_TOKEN`.
+- E2E browser tests send real Firebase anonymous tokens obtained via "Continuar como invitado".
 
 **Modified backend files (inside `epi-climanuvem/backend/`):**
 - `app/infrastructure/config.py` — declares the four test-mode vars
 - `app/infrastructure/firebase_service.py` — skips `initialize_app` when `TEST_MODE=true`
-- `app/presentation/dependencies/auth_dependency.py` — short-circuits token validation for `TEST_TOKEN`
+- `app/presentation/dependencies/auth_dependency.py` — accepts any token in test mode
 - `app/main.py` — conditionally starts the background worker
 
 ---
@@ -137,29 +137,34 @@ retorch-st-climanuvem/
 │   │   │   └── business/
 │   │   │       ├── analysis_service.py
 │   │   │       └── worker.py
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   └── frontend/                       ← React Native/Expo web app (port 5173)
+│   │   └── Dockerfile
+│   └── frontend/                       ← React Native/Expo web app
 │       └── Dockerfile
 │
 ├── src/test/java/epigijon/climanuvem/e2e/functional/
 │   ├── common/
 │   │   ├── BaseApiClass.java           ← HTTP plumbing, auth token, multipart upload, fixtures
-│   │   └── BaseLoggedClass.java        ← Selenium browser lifecycle, loginAsGuest()
-│   ├── utils/
-│   │   ├── Waiter.java                 ← Explicit wait helpers (page- and element-level)
-│   │   └── Navigation.java             ← Browser action helpers (click, fill, navigate)
+│   │   └── BaseLoggedClass.java        ← Selenium browser lifecycle; onWelcomePage() / loginAsGuest()
+│   ├── pages/                          ← Page Object Model (one class per screen)
+│   │   ├── BasePage.java               ← Shared WebDriver, wait, isPresent/click/fill helpers
+│   │   ├── WelcomePage.java            ← Root screen — clickLoginButton() / clickAnonymousLogin()
+│   │   ├── LoginPage.java              ← Login form — enterEmail/Password(), clickRegisterLink()
+│   │   ├── RegisterPage.java           ← Register form — enterUsername/Email/Password()
+│   │   ├── HomePage.java               ← Home screen — clickAnalyzeImage() / clickLogout()
+│   │   └── CapturePage.java            ← Capture screen — query methods only
 │   └── tests/
-│       ├── TestApiPing.java            ← GET /ping, GET /
-│       ├── TestApiAuth.java            ← Auth enforcement (403/401 scenarios)
-│       ├── TestApiAnalysis.java        ← POST /analysis/upload
-│       ├── TestApiHistory.java         ← GET /analysis/history
-│       ├── TestApiDelete.java          ← DELETE /analysis/{id}, /user-data
-│       ├── TestApiCancel.java          ← PATCH /analysis/{id}/cancel
-│       ├── TestWelcomeScreen.java      ← Welcome page elements and navigation
-│       ├── TestLoginForm.java          ← Login form structure and field interactions
-│       ├── TestHomeScreen.java         ← Home page after anonymous login
-│       └── TestCaptureScreen.java      ← Capture page after anonymous login
+│       ├── api/                        ← API (HTTP-level) tests
+│       │   ├── TestApiPing.java        ← GET /ping, GET /
+│       │   ├── TestApiAuth.java        ← Auth enforcement (403/401)
+│       │   ├── TestApiAnalysis.java    ← POST /analysis/upload
+│       │   ├── TestApiHistory.java     ← GET /analysis/history
+│       │   ├── TestApiDelete.java      ← DELETE /analysis/{id}, /user-data
+│       │   └── TestApiCancel.java      ← PATCH /analysis/{id}/cancel
+│       └── e2e/                        ← Browser (Selenium + Page Object) tests
+│           ├── TestWelcomeScreen.java  ← Welcome screen branding and navigation
+│           ├── TestLoginForm.java      ← Login form structure and input behaviour
+│           ├── TestHomeScreen.java     ← Home screen after anonymous login
+│           └── TestCaptureScreen.java  ← Capture screen after anonymous login
 │
 ├── src/test/resources/
 │   ├── test.properties                 ← LOCALHOST_URL, FRONTEND_URL, TEST_TOKEN
@@ -170,10 +175,10 @@ retorch-st-climanuvem/
 │       ├── ClimaNuvemSystemResources.json  ← RETORCH resource model
 │       └── retorchCI.properties
 │
-├── docker-compose.test.yml             ← Test environment (db + backend + frontend, no Ollama)
-├── deploy-local.sh                     ← Linux/macOS: clone SUT, start all services
-├── deploy-local.ps1                    ← Windows PowerShell: clone SUT, start all services
-└── pom.xml                             ← Maven build (httpmime for multipart)
+├── docker-compose.test.yml             ← Test environment (db + backend + frontend)
+├── deploy-local.sh                     ← Linux/macOS: clone SUT and start all services
+├── deploy-local.ps1                    ← Windows PowerShell: clone SUT and start all services
+└── pom.xml                             ← Maven build (httpmime for multipart upload)
 ```
 
 ---
@@ -185,7 +190,9 @@ retorch-st-climanuvem/
 | JUnit 5 (Jupiter) | Test runner |
 | Apache HttpClient 4.5.14 | HTTP client for API requests |
 | Apache HttpMime 4.5.14 | Multipart entity builder (image upload) |
-| Gson 2.14.0 | JSON parsing and payload building |
+| Gson 2.14.0 | JSON parsing |
+| Selenium 4.44.0 | Browser automation (E2E tests) |
+| Selema 4.0.2 | WebDriver lifecycle manager (`giis.selema.manager.*`) |
 | RETORCH annotations | `@AccessMode` resource declarations |
 | Log4j2 + SLF4J | Structured logging |
 | `javax.imageio.ImageIO` (JDK) | Creates minimal 10×10 JPEG test images in memory |
@@ -197,7 +204,9 @@ retorch-st-climanuvem/
 | Resource ID | Represents | Typical access |
 |---|---|---|
 | `backend` | FastAPI service | `READONLY, concurrency=10, sharing=true` |
-| `analysis` | Analysis records in the database | `READWRITE, concurrency=1, sharing=false` (write tests) / `READONLY` (read-only tests) |
+| `analysis` | Analysis records in the database | `READWRITE, concurrency=1, sharing=false` |
+| `frontend` | Expo web frontend | `READONLY, concurrency=5, sharing=true` |
+| `web-browser` | Chrome WebDriver instance | `READWRITE, concurrency=1, sharing=false` |
 
 ---
 
@@ -206,17 +215,15 @@ retorch-st-climanuvem/
 ### `src/test/resources/test.properties`
 ```properties
 LOCALHOST_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
 TEST_TOKEN=test-token-climanuvem
 ```
-Both can be overridden at runtime via system properties (`-DSUT_URL=…`, `-DTEST_TOKEN=…`) or environment variables (`SUT_URL`, `TEST_TOKEN`).
+All values can be overridden via system properties (`-DSUT_URL=…`, `-DTEST_TOKEN=…`, `-DFRONTEND_URL=…`) or matching environment variables.
 
 ### `src/test/resources/log4j2.xml`
-Logs go to `target/testlogs/log${sys:TJOB_NAME:-testinglocal}-test.log`. Parallel TJobs write to separate files.
+Logs to `target/testlogs/log${sys:TJOB_NAME:-testinglocal}-test.log`. The `epigijon` logger runs at DEBUG level.
 
 ### `pom.xml` — per-TJob build directory
-```xml
-<directory>${project.basedir}/target/${TJOB_NAME}</directory>
-```
 Falls back to `target/local` when `TJOB_NAME` is not set (local-execution profile).
 
 ---
@@ -226,111 +233,134 @@ Falls back to `target/local` when `TJOB_NAME` is not set (local-execution profil
 ### Local — full suite
 
 ```bash
-# 1. Start the SUT (clones from GitLab on first run)
+# 1. Start the SUT (clones from GitLab on first run, waits for both backend and frontend)
 ./deploy-local.sh        # Linux
 ./deploy-local.ps1       # Windows
 
 # 2. Run all tests
 mvn test
 
-# 3. Tear down when done
+# 3. Run only API tests
+mvn test -Dtest="TestApi*"
+
+# 4. Run only E2E browser tests (add -DCI=true for headless)
+mvn test -Dtest="TestWelcomeScreen,TestLoginForm,TestHomeScreen,TestCaptureScreen"
+
+# 5. Tear down when done
 ./deploy-local.sh --down
 ./deploy-local.ps1 -Down
-```
-
-### Local — single class
-
-```bash
-mvn test -Dtest=TestApiAnalysis
-mvn test -Dtest=TestApiHistory
 ```
 
 ### CI (Jenkins / RETORCH)
 
 ```bash
-mvn test -Dtest="<TestClass#method>" -DTJOB_NAME="<TJOB_NAME>" -DSUT_URL="<SUT_URL>" -DTEST_TOKEN="<TOKEN>"
+mvn test -Dtest="<TestClass#method>" -DTJOB_NAME="<name>" -DSUT_URL="<url>" \
+         -DTEST_TOKEN="<token>" -DFRONTEND_URL="<url>" -DCI=true
+```
+
+`-DCI=true` activates headless Chrome for the browser tests.
+
+---
+
+## Page Object Model
+
+All browser interactions go through the `pages/` package. Tests never touch `WebDriver` directly.
+
+### Navigation is typed
+
+Every navigation action returns the next page object, so the compiler catches bad flows:
+
+```
+WelcomePage → clickLoginButton()     → LoginPage
+WelcomePage → clickAnonymousLogin()  → HomePage
+LoginPage   → clickRegisterLink()    → RegisterPage
+HomePage    → clickAnalyzeImage()    → CapturePage
+HomePage    → clickLogout()          → WelcomePage
+```
+
+### `BasePage` shared primitives
+
+| Method | Purpose |
+|---|---|
+| `isPresent(By)` | True when ≥1 element matches the locator |
+| `click(By)` | Wait for clickable → click |
+| `fill(By, String)` | Wait for visible → clear → sendKeys |
+| `inputValue(By)` | Read `value` attribute of an input |
+| `byText(text)` | XPath: element whose full text equals `text` |
+| `byPartialText(text)` | XPath: element whose text contains `text` |
+| `inputByPlaceholder(ph)` | CSS: `input[placeholder='ph']` |
+
+### Test entry points on `BaseLoggedClass`
+
+| Method | Returns | Use |
+|---|---|---|
+| `onWelcomePage()` | `WelcomePage` | Tests that start at the root screen |
+| `loginAsGuest()` | `HomePage` | Tests that need an authenticated session |
+
+### Typical test shape
+
+```java
+// Structural — no auth needed
+@Test
+void testBrandingIsVisible() {
+    WelcomePage page = onWelcomePage();
+    Assertions.assertTrue(page.isAppTitleVisible());
+}
+
+// Authenticated — guest login
+@Test
+void testAnalyzeImageNavigatesToCapturePage() {
+    Assertions.assertTrue(
+        loginAsGuest().clickAnalyzeImage().isCameraOptionVisible());
+}
 ```
 
 ---
 
-## `BaseApiClass` helpers (`epigijon.climanuvem.e2e.functional.common`)
+## `BaseApiClass` helpers
 
 ### URL builders
 - `analysisUrl(path)` — prepends `{sutUrl}/analysis`
 - `rootUrl(path)` — prepends `{sutUrl}`
 
-### HTTP methods (unauthenticated)
-- `get(url)` — GET, returns response body
-- `getStatus(url)` — GET, returns HTTP status code
+### HTTP (unauthenticated)
+- `get(url)` / `getStatus(url)`
 
-### HTTP methods (authenticated — `Authorization: Bearer {testToken}`)
-- `getAuth(url)` — GET, returns body
-- `getStatusAuth(url)` — GET, returns status
-- `deleteStatusAuth(url)` — DELETE, returns status
-- `patchStatusAuth(url)` — PATCH, returns status
+### HTTP (authenticated — `Authorization: Bearer {testToken}`)
+- `getAuth(url)` / `getStatusAuth(url)` / `deleteStatusAuth(url)` / `patchStatusAuth(url)`
 
 ### Image upload
-- `uploadImage(url, imageBytes, location)` — multipart POST, returns body
-- `uploadImageStatus(url, imageBytes, location)` — multipart POST, returns status
+- `uploadImage(url, bytes, location)` — multipart POST, returns body
+- `uploadImageStatus(url, bytes, location)` — multipart POST, returns status
 
-### JSON helpers
-- `getJsonObject(url)` — GET + parse as JsonObject (no auth)
-- `getJsonObjectAuth(url)` — GET + parse as JsonObject (with auth)
-- `getJsonArrayAuth(url)` — GET + parse as JsonArray (with auth)
-- `containsByField(array, fieldName, value)` — true if any element matches
+### JSON
+- `getJsonObject(url)` / `getJsonObjectAuth(url)` / `getJsonArrayAuth(url)`
+- `containsByField(array, field, value)`
 
-### Test-data helpers
-- `unique()` — current time in ms, used as a uniqueness suffix
-- `createTestImage()` — 10×10 JPEG in memory (no disk I/O)
-- `createAnalysis(location)` — uploads an image and returns the assigned `analysis_id`
-- `deleteAllUserData()` — calls `DELETE /analysis/user-data` for the test user
-
-### Typical test shape (read-only)
-```java
-@AccessMode(resID = "backend", concurrency = 10, sharing = true, accessMode = "READONLY")
-@Test
-@DisplayName("GET /ping returns HTTP 200 with ping:pong payload")
-void testPingEndpoint() throws IOException {
-    Assertions.assertEquals(200, getStatus(rootUrl("/ping")));
-    JsonObject body = getJsonObject(rootUrl("/ping"));
-    Assertions.assertEquals("pong", body.get("ping").getAsString());
-}
-```
-
-### Typical test shape (write + verify)
-```java
-@AccessMode(resID = "analysis", concurrency = 1, sharing = false, accessMode = "READWRITE")
-@Test
-@DisplayName("DELETE /analysis/{id} returns HTTP 200 and the analysis no longer appears in history")
-void testDeleteSingleAnalysisReturns200() throws IOException {
-    int analysisId = createAnalysis("Delete Me City");
-    int deleteStatus = deleteStatusAuth(analysisUrl("/" + analysisId));
-    Assertions.assertEquals(200, deleteStatus);
-    JsonArray history = getJsonArrayAuth(analysisUrl("/history"));
-    Assertions.assertFalse(containsByField(history, "id", String.valueOf(analysisId)));
-}
-```
+### Fixtures
+- `unique()` — current time in ms as a uniqueness suffix
+- `createTestImage()` — 10×10 JPEG in memory
+- `createAnalysis(location)` — upload + return `analysis_id`
+- `deleteAllUserData()` — `DELETE /analysis/user-data`
 
 ---
 
-## Design decisions and known issues
+## Design decisions
 
 ### DISABLE_WORKER=true for deterministic cancel tests
-The background worker calls Ollama and, on failure, sets `status = 'cancelled'`. Without disabling it, the `PATCH /cancel` test would be racy: if the worker finishes before the test sends the PATCH, the analysis is already cancelled and the test sees a 400 instead of 200. `DISABLE_WORKER=true` in the test compose keeps every uploaded analysis in `'analyzing'` state.
+The background worker calls Ollama and on error sets `status='cancelled'`. Without disabling it the cancel test is racy. `DISABLE_WORKER=true` keeps every uploaded analysis in `'analyzing'` so `PATCH /cancel` always returns 200.
 
-### Multipart upload using httpmime
-Apache HttpClient 4.5 separates the multipart entity builder into a separate artifact (`httpmime`). It is added to `pom.xml` alongside `httpclient`. The `createTestImage()` helper uses `javax.imageio.ImageIO` from the standard JDK to build a minimal 10×10 JPEG in memory — no fixture files needed.
+### TEST_MODE accepts any Bearer token
+API tests send the fixed `TEST_TOKEN`; E2E browser tests send real Firebase anonymous tokens. Accepting any token in `TEST_MODE` means both suites work against the same backend without needing a Firebase emulator.
 
-### Test isolation for history tests
-`TestApiHistory` is annotated `@TestInstance(PER_CLASS)` so its non-static `@BeforeAll cleanUpUserData()` can call `deleteAllUserData()`. This clears the test user's history before the history tests run, regardless of what previous test classes created.
+### Page Object navigation returns typed page objects
+Every navigation method returns the next screen's page object. This enforces correct flows at compile time and makes test intent readable without comments.
 
-### Firebase not initialized in TEST_MODE
-`firebase_service.py` guards `initialize_app()` behind `if not TEST_MODE`. The `firebase_admin.messaging` module can be imported without an active app — errors only arise at `messaging.send()`, which never happens in tests because no FCM token is passed.
+### Test isolation
+Each browser test gets a fresh Chrome session (`@BeforeEach` / `@AfterEach`). `TestApiHistory` uses `@TestInstance(PER_CLASS)` and a `@BeforeAll deleteAllUserData()` to guarantee an empty history state.
 
-### Code style conventions (for this project)
-- **No comments** unless the WHY is non-obvious (constraint, workaround, invariant).
-- **`@DisplayName`** must be a human-readable sentence, not the method name.
-- **Test data isolation**: each test creates its own data; `@BeforeAll` cleanup when empty state is required.
-- **`BaseApiClass` helpers**: use `createAnalysis()` for setup — do not duplicate multipart payload construction inline.
-- **Assertions**: use `Assertions.assertAll` when checking multiple fields of the same object.
-- **Logger**: always use the inherited `log` field; never instantiate a new logger in a test class.
+### Code style
+- No comments unless the WHY is non-obvious.
+- `@DisplayName` must be a human-readable sentence.
+- Each test creates its own data; `@BeforeAll` cleanup only when empty state is required.
+- Never instantiate a new logger in a test class — use the inherited `log` field.

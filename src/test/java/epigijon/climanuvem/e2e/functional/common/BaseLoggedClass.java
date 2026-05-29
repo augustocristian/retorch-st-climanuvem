@@ -1,7 +1,7 @@
 package epigijon.climanuvem.e2e.functional.common;
 
-import epigijon.climanuvem.e2e.functional.utils.Navigation;
-import epigijon.climanuvem.e2e.functional.utils.Waiter;
+import epigijon.climanuvem.e2e.functional.pages.HomePage;
+import epigijon.climanuvem.e2e.functional.pages.WelcomePage;
 import giis.selema.manager.SelemaConfig;
 import giis.selema.manager.SeleManager;
 import org.junit.jupiter.api.AfterEach;
@@ -19,16 +19,19 @@ import java.util.Properties;
 /**
  * Base class for the ClimaNuvem browser (E2E) test suite.
  * <p>
- * Sets up a Chrome WebDriver before each test and tears it down afterward.
- * Each test gets a fresh browser session so that state (auth, cookies) never
- * leaks between scenarios.
+ * Manages the Chrome WebDriver lifecycle: a fresh session is created before
+ * each test and closed afterward, preventing any state leakage between tests.
  * <p>
- * The frontend URL is read from {@code src/test/resources/test.properties}
- * (key {@code FRONTEND_URL}), defaulting to {@code http://localhost:5173}.
- * Override at runtime via {@code -DFRONTEND_URL=…} or the {@code FRONTEND_URL}
- * environment variable.
+ * Entry points for test methods:
+ * <ul>
+ *   <li>{@link #onWelcomePage()} — navigates to the root URL and returns a
+ *       {@link WelcomePage}, which waits internally until the page is ready.</li>
+ *   <li>{@link #loginAsGuest()} — convenience shortcut that clicks
+ *       "Continuar como invitado" and returns a {@link HomePage}.</li>
+ * </ul>
  * <p>
  * Set {@code -DCI=true} (or the {@code CI} env var) for headless Chrome in CI.
+ * Override the frontend URL via {@code -DFRONTEND_URL=…} or the env var.
  */
 @SuppressWarnings("java:S5786") // must be public — subclasses live in a different package
 public class BaseLoggedClass {
@@ -36,49 +39,39 @@ public class BaseLoggedClass {
     protected static final Logger log = LoggerFactory.getLogger(BaseLoggedClass.class);
 
     protected static String frontendUrl;
-    protected static String tJobName;
 
-    protected WebDriver  driver;
-    protected Waiter     waiter;
-    protected Navigation navigation;
-
-    private SeleManager seleManager;
+    protected WebDriver driver;
+    private   SeleManager seleManager;
 
     @BeforeAll
     static void setUpClass() throws IOException {
-        Properties properties = new Properties();
-        properties.load(Files.newInputStream(Paths.get("src/test/resources/test.properties")));
-
-        tJobName = System.getProperty("TJOB_NAME");
+        Properties props = new Properties();
+        props.load(Files.newInputStream(Paths.get("src/test/resources/test.properties")));
 
         String envUrl = System.getProperty("FRONTEND_URL") != null
                 ? System.getProperty("FRONTEND_URL")
                 : System.getenv("FRONTEND_URL");
-        frontendUrl = envUrl != null ? envUrl : properties.getProperty("FRONTEND_URL", "http://localhost:5173");
+        frontendUrl = envUrl != null ? envUrl : props.getProperty("FRONTEND_URL", "http://localhost:5173");
 
         log.info("Frontend URL: {}", frontendUrl);
     }
 
     @BeforeEach
     void setUpTest() {
-        log.info("Setting up browser for E2E test");
-
         String[] args = isHeadless()
-                ? new String[]{"--incognito", "--headless", "--no-sandbox", "--disable-dev-shm-usage",
+                ? new String[]{"--incognito", "--headless", "--no-sandbox",
+                               "--disable-dev-shm-usage",
                                "--disable-blink-features=AutomationControlled"}
-                : new String[]{"--incognito", "--disable-blink-features=AutomationControlled"};
+                : new String[]{"--incognito",
+                               "--disable-blink-features=AutomationControlled"};
 
         seleManager = new SeleManager(new SelemaConfig())
                 .setBrowser("chrome")
                 .setArguments(args)
                 .setMaximize(true);
 
-        driver    = seleManager.createDriver();
-        waiter    = new Waiter(driver);
-        navigation = new Navigation(driver, frontendUrl);
-
-        navigation.goToWelcome();
-        waiter.waitForWelcomePage();
+        driver = seleManager.createDriver();
+        log.info("Browser started");
     }
 
     @AfterEach
@@ -89,20 +82,27 @@ public class BaseLoggedClass {
         }
     }
 
-    private boolean isHeadless() {
-        return "true".equalsIgnoreCase(System.getProperty("CI"))
-                || "true".equalsIgnoreCase(System.getenv("CI"));
+    /**
+     * Navigates to the frontend root and returns a {@link WelcomePage}.
+     * The page object waits internally until the Welcome screen is ready.
+     */
+    protected WelcomePage onWelcomePage() {
+        driver.get(frontendUrl);
+        return new WelcomePage(driver);
     }
 
     /**
-     * Performs anonymous login ("Continuar como invitado") and waits for the Home page.
-     * Firebase anonymous auth is called; the backend accepts the resulting token
-     * because TEST_MODE=true accepts any Bearer token.
-     * Call this at the start of any test that requires an authenticated session.
+     * Clicks "Continuar como invitado" on the Welcome screen and returns a
+     * {@link HomePage} once the Home screen has finished loading.
+     * Firebase anonymous auth is invoked; the backend accepts the resulting
+     * token because {@code TEST_MODE=true} accepts any Bearer token.
      */
-    protected void loginAsGuest() {
-        navigation.clickAnonymousLogin();
-        waiter.waitForHomePage();
-        log.debug("Logged in as anonymous guest");
+    protected HomePage loginAsGuest() {
+        return onWelcomePage().clickAnonymousLogin();
+    }
+
+    private boolean isHeadless() {
+        return "true".equalsIgnoreCase(System.getProperty("CI"))
+                || "true".equalsIgnoreCase(System.getenv("CI"));
     }
 }
