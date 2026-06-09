@@ -28,6 +28,7 @@ public class WelcomePage extends BasePage {
     public boolean isTaglineVisible()         { return isPresent(TAGLINE);      }
     public boolean isLoginButtonPresent()     { return isPresent(LOGIN_BUTTON); }
     public boolean isGuestButtonPresent()     { return isPresent(GUEST_BUTTON); }
+    public boolean isHomeVisible()            { return isPresent(byPartialText("Bienvenido")); }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 

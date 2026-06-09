@@ -11,6 +11,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.ByteArrayBody;
@@ -48,6 +50,7 @@ public class BaseApiClass {
     protected static String testToken;
     protected static Properties properties;
     protected static String tJobName;
+    private static final int HTTP_TIMEOUT_MS = 10000;
 
     @BeforeAll
     static void setupAll() throws IOException {
@@ -67,7 +70,14 @@ public class BaseApiClass {
         testToken = envToken != null ? envToken : properties.getProperty("TEST_TOKEN");
 
         log.info("API base URL: {}", sutUrl);
-        httpClient = HttpClients.createDefault();
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(HTTP_TIMEOUT_MS)
+                .setConnectionRequestTimeout(HTTP_TIMEOUT_MS)
+                .setSocketTimeout(HTTP_TIMEOUT_MS)
+                .build();
+        httpClient = HttpClients.custom()
+                .setDefaultRequestConfig(requestConfig)
+                .build();
     }
 
     @AfterAll
@@ -88,11 +98,12 @@ public class BaseApiClass {
     protected String get(String url) throws IOException {
         HttpGet request = new HttpGet(url);
         request.addHeader("Accept", "application/json");
-        HttpResponse response = httpClient.execute(request);
-        HttpEntity entity = response.getEntity();
-        String body = entity != null ? EntityUtils.toString(entity) : "";
-        log.debug("GET {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
-        return body;
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            HttpEntity entity = response.getEntity();
+            String body = entity != null ? EntityUtils.toString(entity) : "";
+            log.debug("GET {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
+            return body;
+        }
     }
 
     protected int getStatus(String url) throws IOException {
@@ -105,11 +116,12 @@ public class BaseApiClass {
         HttpGet request = new HttpGet(url);
         request.addHeader("Accept", "application/json");
         request.addHeader("Authorization", "Bearer " + testToken);
-        HttpResponse response = httpClient.execute(request);
-        HttpEntity entity = response.getEntity();
-        String body = entity != null ? EntityUtils.toString(entity) : "";
-        log.debug("GET(auth) {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
-        return body;
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            HttpEntity entity = response.getEntity();
+            String body = entity != null ? EntityUtils.toString(entity) : "";
+            log.debug("GET(auth) {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
+            return body;
+        }
     }
 
     protected int getStatusAuth(String url) throws IOException {
@@ -140,11 +152,12 @@ public class BaseApiClass {
                 .addPart("location", new StringBody(location, ContentType.TEXT_PLAIN))
                 .build();
         request.setEntity(entity);
-        HttpResponse response = httpClient.execute(request);
-        HttpEntity responseEntity = response.getEntity();
-        String body = responseEntity != null ? EntityUtils.toString(responseEntity) : "";
-        log.debug("POST(upload) {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
-        return body;
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            HttpEntity responseEntity = response.getEntity();
+            String body = responseEntity != null ? EntityUtils.toString(responseEntity) : "";
+            log.debug("POST(upload) {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
+            return body;
+        }
     }
 
     protected int uploadImageStatus(String url, byte[] imageBytes, String location) throws IOException {
@@ -159,9 +172,12 @@ public class BaseApiClass {
     }
 
     private int statusOf(HttpUriRequest request) throws IOException {
-        int status = httpClient.execute(request).getStatusLine().getStatusCode();
-        log.debug("{} {} -> {}", request.getMethod(), request.getURI(), status);
-        return status;
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            EntityUtils.consumeQuietly(response.getEntity());
+            int status = response.getStatusLine().getStatusCode();
+            log.debug("{} {} -> {}", request.getMethod(), request.getURI(), status);
+            return status;
+        }
     }
 
     // ── JSON helpers ──────────────────────────────────────────────────────────

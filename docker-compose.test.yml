@@ -9,13 +9,13 @@ services:
     networks:
       - climanuvem_test_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U testuser"]
+      test: ["CMD-SHELL", "pg_isready -U testuser -d climanuvem_test"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   backend:
-    build: ./epi-climanuvem/backend
+    build: ../epi-climanuvem/backend
     container_name: climanuvem_test_backend
     ports:
       - "8000:8000"
@@ -35,16 +35,21 @@ services:
 
   frontend:
     build:
-      context: ./epi-climanuvem/frontend
+      context: ../epi-climanuvem/frontend
       args:
         # Selenium runs on the host machine, so localhost:8000 reaches the backend
         # through Docker's port mapping.
         - EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
+        - EXPO_PUBLIC_DEFAULT_LANGUAGE=es
+        - EXPO_PUBLIC_TEST_MODE=true
     container_name: climanuvem_test_frontend
     ports:
-      - "5173:5173"
+      - "5173:8081"
     environment:
       - EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
+      - EXPO_PUBLIC_DEFAULT_LANGUAGE=es
+      - EXPO_PUBLIC_TEST_MODE=true
+      - CI=1
     depends_on:
       - backend
     networks:

@@ -32,6 +32,8 @@ class TestApiHistory extends BaseApiClass {
     @Test
     @DisplayName("GET /analysis/history returns HTTP 200 with an empty list when the user has no analyses")
     void testHistoryInitiallyEmpty() throws IOException {
+        deleteAllUserData();
+
         Assertions.assertEquals(200, getStatusAuth(analysisUrl("/history")),
                 "History endpoint must return HTTP 200");
 

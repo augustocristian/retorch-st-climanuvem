@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SUT_REPO="https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem.git"
-SUT_DIR="epi-climanuvem"
+SUT_DIR="../epi-climanuvem"
 COMPOSE_FILE="docker-compose.test.yml"
 PROJECT_NAME="climanuvem-test"
 MAX_WAIT_SECS=180
@@ -49,7 +49,7 @@ fi
 step "Checking for SUT in '$SUT_DIR'..."
 if [[ ! -d "$SUT_DIR" ]]; then
     step "Cloning $SUT_REPO..."
-    git clone "$SUT_REPO"
+    git clone "$SUT_REPO" "$SUT_DIR"
     ok "Cloned '$SUT_DIR'."
 else
     ok "'$SUT_DIR' already present, skipping clone."

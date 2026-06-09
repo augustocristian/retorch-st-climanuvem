@@ -2,7 +2,11 @@ package epigijon.climanuvem.e2e.functional.pages;
 
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * Page Object for the Login form.
@@ -15,6 +19,33 @@ public class LoginPage extends BasePage {
     private static final By PASSWORD_INPUT   = inputByPlaceholder("Contraseña");
     private static final By FORGOT_PASSWORD  = byPartialText("Olvidaste tu contraseña");
     private static final By REGISTER_LINK    = byPartialText("Regístrate");
+    private static final By SUBMIT_BUTTONS   = By.xpath(
+            "//*[@role='button' or self::button or @tabindex]"
+                    + "[contains(normalize-space(.),'Iniciar Sesión')]");
+    private static final By GOOGLE_BUTTON    = byPartialText("Google");
+    private static final By HOME_MARKER      = byPartialText("Bienvenido");
+    private static final By LOGIN_FEEDBACK   = By.xpath(
+            "//*[contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'error')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'incorrect')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'credencial')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'contraseña')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'correo')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'obligatorio')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'requerid')]");
 
     public LoginPage(WebDriver driver) {
         super(driver);
@@ -27,7 +58,13 @@ public class LoginPage extends BasePage {
     public boolean isPasswordInputPresent()   { return isPresent(PASSWORD_INPUT);  }
     public boolean isForgotPasswordPresent()  { return isPresent(FORGOT_PASSWORD); }
     public boolean isRegisterLinkPresent()    { return isPresent(REGISTER_LINK);   }
+    public boolean isGoogleLoginPresent()     { return isPresent(GOOGLE_BUTTON);    }
+    public boolean isHomeVisible()            { return isPresent(HOME_MARKER);      }
     public String  getEmailValue()            { return inputValue(EMAIL_INPUT);     }
+
+    public boolean hasLoginErrorOrValidation() {
+        return isVisible(LOGIN_FEEDBACK) || hasInvalidRequiredInput();
+    }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -43,9 +80,73 @@ public class LoginPage extends BasePage {
         return this;
     }
 
+    /** Submits the email/password login form and stays on the current page object. */
+    public LoginPage submitLogin() {
+        clickElement(lastVisibleSubmitButton());
+        return this;
+    }
+
+    /** Fills both fields and submits the email/password login form. */
+    public LoginPage login(String email, String password) {
+        enterEmail(email);
+        enterPassword(password);
+        return submitLogin();
+    }
+
+    /** Waits until the authenticated Home screen is visible and returns its page object. */
+    public HomePage waitForHome() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(HOME_MARKER));
+        return new HomePage(driver);
+    }
+
+    /** Waits until the login attempt is rejected by UI validation or an error message. */
+    public LoginPage waitForLoginFailure() {
+        waitUntil(webDriver -> hasLoginErrorOrValidation() && isEmailInputPresent());
+        return this;
+    }
+
+    /**
+     * Starts the Google provider flow without requiring credentials. The flow is
+     * considered started when a provider window/tab opens or the current page URL
+     * or body contains a Google/Firebase identity marker.
+     */
+    public boolean clickGoogleLoginStartsProvider() {
+        Set<String> originalWindows = driver.getWindowHandles();
+        click(GOOGLE_BUTTON);
+        return waitUntil(webDriver -> driver.getWindowHandles().size() > originalWindows.size()
+                || containsIdentityProviderMarker());
+    }
+
     /** Clicks "¿No tienes cuenta? Regístrate" and waits for the Register form. */
     public RegisterPage clickRegisterLink() {
         click(REGISTER_LINK);
         return new RegisterPage(driver);
+    }
+
+    private boolean hasInvalidRequiredInput() {
+        Object invalidCount = runScript(
+                "return Array.from(document.querySelectorAll('input'))"
+                        + ".filter(function(input) { return input.required && !input.checkValidity(); }).length;");
+        return invalidCount instanceof Number && ((Number) invalidCount).intValue() > 0;
+    }
+
+    private boolean containsIdentityProviderMarker() {
+        String url = driver.getCurrentUrl().toLowerCase();
+        String body = driver.findElement(By.tagName("body")).getText().toLowerCase();
+        return url.contains("google") || url.contains("firebase") || url.contains("identitytoolkit")
+                || body.contains("google") || body.contains("firebase");
+    }
+
+    private WebElement lastVisibleSubmitButton() {
+        return wait.until(webDriver -> {
+            List<WebElement> buttons = driver.findElements(SUBMIT_BUTTONS);
+            for (int i = buttons.size() - 1; i >= 0; i--) {
+                WebElement button = buttons.get(i);
+                if (button.isDisplayed()) {
+                    return button;
+                }
+            }
+            return null;
+        });
     }
 }

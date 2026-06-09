@@ -1,8 +1,10 @@
 package epigijon.climanuvem.e2e.functional.pages;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
@@ -35,12 +37,30 @@ abstract class BasePage {
 
     /** Waits for {@code locator} to be clickable and clicks it. */
     protected void click(By locator) {
-        wait.until(ExpectedConditions.elementToBeClickable(locator)).click();
+        WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        clickElement(el);
+    }
+
+    /** Clicks an already located element using the React Native Web event chain. */
+    protected void clickElement(WebElement el) {
+        ((JavascriptExecutor) driver).executeScript(
+                "var el = arguments[0];"
+                        + "var target = el.closest('[role=\"button\"],[role=\"link\"],button,a,[tabindex]') || el;"
+                        + "target.scrollIntoView({block: 'center', inline: 'center'});"
+                        + "['pointerdown','mousedown','pointerup','mouseup','click'].forEach(function(type) {"
+                        + "  target.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, view: window}));"
+                        + "});",
+                el);
     }
 
     /** Waits for {@code locator} to be visible, clears it, and types {@code text}. */
     protected void fill(By locator, String text) {
         WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        fillElement(el, text);
+    }
+
+    /** Clears and types into an already located input element. */
+    protected void fillElement(WebElement el, String text) {
         el.clear();
         el.sendKeys(text);
     }
@@ -50,16 +70,31 @@ abstract class BasePage {
         return driver.findElement(locator).getAttribute("value");
     }
 
+    /** True when any element matching {@code locator} is currently visible. */
+    protected boolean isVisible(By locator) {
+        return driver.findElements(locator).stream().anyMatch(WebElement::isDisplayed);
+    }
+
+    /** Waits until the supplied condition returns true. */
+    protected boolean waitUntil(ExpectedCondition<Boolean> condition) {
+        return wait.until(condition);
+    }
+
+    /** Runs JavaScript and returns its raw value. */
+    protected Object runScript(String script, Object... args) {
+        return ((JavascriptExecutor) driver).executeScript(script, args);
+    }
+
     // ── Shared locator factories ──────────────────────────────────────────────
 
     /** XPath: any element whose full text equals {@code text}. */
     protected static By byText(String text) {
-        return By.xpath("//*[normalize-space(.)='" + text + "']");
+        return By.xpath("//*[normalize-space(.)='" + text + "' and not(.//*[normalize-space(.)='" + text + "'])]");
     }
 
     /** XPath: any element whose text contains {@code text} as a substring. */
     protected static By byPartialText(String text) {
-        return By.xpath("//*[contains(.,'" + text + "')]");
+        return By.xpath("//*[contains(normalize-space(.),'" + text + "') and not(.//*[contains(normalize-space(.),'" + text + "')])]");
     }
 
     /** CSS: {@code <input>} with the given placeholder. */

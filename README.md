@@ -1,10 +1,10 @@
-# EPI-ClimaNuvem — E2E Test Suite
+# EPI-ClimaNuvem — Test Suite
 
-End-to-end test suite for the [EPI-ClimaNuvem](https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem) application, built with the [RETORCH](https://github.com/giis-uniovi/retorch) framework.
+Test suite for the [EPI-ClimaNuvem](https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem) application.
 
 Covers two test layers:
 - **API tests** — HTTP-level tests against the FastAPI backend (no browser needed)
-- **E2E tests** — Selenium + Page Object tests that drive the Expo web frontend in Chrome
+- **Login system tests** — Selenium/JUnit tests that drive the Expo web frontend in Chrome
 
 ---
 
@@ -16,7 +16,7 @@ Covers two test layers:
 | Maven | 3.8 |
 | Docker + Docker Compose | 24 |
 | Git | any recent |
-| Chrome | any recent (for E2E tests) |
+| Chrome | any recent (for Selenium tests) |
 
 ---
 
@@ -50,11 +50,17 @@ mvn test
 # API tests only
 mvn test -Dtest="TestApi*"
 
-# E2E browser tests only (opens Chrome)
-mvn test -Dtest="TestWelcomeScreen,TestLoginForm,TestHomeScreen,TestCaptureScreen"
+# Login system tests only (opens Chrome)
+mvn test -Dtest="TestLoginSystem" -DLOGIN_EXISTING_EMAIL="user@example.com" -DLOGIN_EXISTING_PASSWORD="secret"
 
-# E2E tests headless (for CI or no monitor)
-mvn test -Dtest="TestWelcomeScreen,TestLoginForm,TestHomeScreen,TestCaptureScreen" -DCI=true
+# Login system tests headless (for CI or no monitor)
+mvn test -Dtest="TestLoginSystem" -DLOGIN_EXISTING_EMAIL="user@example.com" -DLOGIN_EXISTING_PASSWORD="secret" -DCI=true
+
+# Account-creation system tests
+mvn test -Dtest="TestRegisterSystem" -DLOGIN_EXISTING_EMAIL="user@example.com" -DCI=true
+
+# Profile-configuration system tests
+mvn test -Dtest="TestProfileSystem" -DPROFILE_LOGIN_EMAIL="verified-user@example.com" -DPROFILE_LOGIN_PASSWORD="secret" -DCI=true
 
 # Single class
 mvn test -Dtest=TestApiCancel
@@ -71,15 +77,30 @@ mvn test -Dtest=TestApiCancel
 
 ## Configuration
 
-All defaults work out of the box. Override via `-D` system properties or environment variables:
+Set login credentials for the Selenium login tests in one of these places, in priority order:
+
+1. Maven system properties, for example `-DLOGIN_EXISTING_EMAIL="user@example.com"`.
+2. Environment variables with the same names.
+3. `src/test/resources/test.properties`.
+
+`LOGIN_EXISTING_EMAIL` and `LOGIN_EXISTING_PASSWORD` are required for the email-login success case. The negative-test credentials have safe defaults.
 
 | Property | Default | Description |
 |---|---|---|
 | `SUT_URL` | `http://localhost:8000` | Backend base URL |
-| `FRONTEND_URL` | `http://localhost:5173` | Frontend base URL (E2E tests) |
+| `FRONTEND_URL` | `http://localhost:5173` | Frontend base URL (Selenium tests) |
 | `TEST_TOKEN` | `test-token-climanuvem` | Auth token injected by API tests |
+| `LOGIN_EXISTING_EMAIL` | _(required for email success cases)_ | Existing email account used by login system tests |
+| `LOGIN_EXISTING_PASSWORD` | _(required for email success cases)_ | Correct password for `LOGIN_EXISTING_EMAIL` |
+| `LOGIN_UNKNOWN_EMAIL` | `missing-user@example.com` | Unknown email used by negative login tests |
+| `LOGIN_WRONG_PASSWORD` | `wrong-password` | Incorrect password used by negative login tests |
+| `PROFILE_LOGIN_EMAIL` | `LOGIN_EXISTING_EMAIL` | Verified account used by authenticated profile tests |
+| `PROFILE_LOGIN_PASSWORD` | `LOGIN_EXISTING_PASSWORD` | Password for `PROFILE_LOGIN_EMAIL` |
+| `FIREBASE_WEB_API_KEY` | _(unset)_ | Optional Firebase Web API key used to delete the account created by `TestRegisterSystem` |
 | `TJOB_NAME` | `local` | Separates build outputs in CI |
 | `CI` | _(unset)_ | Set to `true` for headless Chrome |
+
+`TestRegisterSystem` creates the successful-registration account with a unique email address and expects the email-verification dialog shown by the app. If `FIREBASE_WEB_API_KEY` is configured, the test deletes that Firebase Auth account at the end; otherwise the unique address prevents future test collisions.
 
 ---
 
@@ -89,7 +110,7 @@ All defaults work out of the box. Override via `-D` system properties or environ
 src/test/java/epigijon/climanuvem/e2e/functional/
 ├── common/
 │   ├── BaseApiClass.java       HTTP helpers, multipart upload, JSON fixtures
-│   └── BaseLoggedClass.java    Browser lifecycle; onWelcomePage() / loginAsGuest()
+│   └── BaseLoggedClass.java    Selenium browser lifecycle and login configuration
 ├── pages/                      Page Object Model — one class per screen
 │   ├── BasePage.java           Shared wait, click, fill, isPresent helpers
 │   ├── WelcomePage.java
@@ -105,11 +126,10 @@ src/test/java/epigijon/climanuvem/e2e/functional/
     │   ├── TestApiHistory.java
     │   ├── TestApiDelete.java
     │   └── TestApiCancel.java
-    └── e2e/                    Selenium tests (Page Object pattern)
-        ├── TestWelcomeScreen.java
-        ├── TestLoginForm.java
-        ├── TestHomeScreen.java
-        └── TestCaptureScreen.java
+    └── e2e/                    Selenium system tests (Page Object pattern)
+        ├── TestLoginSystem.java
+        ├── TestRegisterSystem.java
+        └── TestProfileSystem.java
 ```
 
 Page object navigation is typed — every action returns the next screen:
@@ -132,6 +152,6 @@ WelcomePage back    = home.clickLogout();
 
 The backend is started with `TEST_MODE=true` and `DISABLE_WORKER=true` (see `docker-compose.test.yml`):
 
-- **Any Bearer token** is accepted — API tests use a fixed token; E2E tests use real Firebase anonymous tokens.
+- **Any Bearer token** is accepted — API tests use a fixed token; Selenium guest-login tests use real Firebase anonymous tokens.
 - **Firebase is not initialised** — no service account key is needed.
 - **Ollama worker is disabled** — analyses stay in `analyzing` state, making cancel tests deterministic.

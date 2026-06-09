@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $SUT_REPO      = "https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem.git"
-$SUT_DIR       = "epi-climanuvem"
+$SUT_DIR       = "..\epi-climanuvem"
 $COMPOSE_FILE  = "docker-compose.test.yml"
 $PROJECT_NAME  = "climanuvem-test"
 $MAX_WAIT_SECS = 180
@@ -59,7 +59,7 @@ if ($Down) {
 Write-Step "Checking for SUT in '$SUT_DIR'..."
 if (-not (Test-Path $SUT_DIR)) {
     Write-Step "Cloning $SUT_REPO..."
-    git clone $SUT_REPO
+    git clone $SUT_REPO $SUT_DIR
     if ($LASTEXITCODE -ne 0) { Write-Fail "Failed to clone '$SUT_REPO'." }
     Write-OK "Cloned '$SUT_DIR'."
 } else {

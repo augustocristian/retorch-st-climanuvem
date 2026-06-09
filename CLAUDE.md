@@ -9,10 +9,10 @@ This file gives Claude Code the full context needed to work in this repository w
 
 ## Project purpose
 
-End-to-end test suite for **EPI-ClimaNuvem**, a FastAPI + PostgreSQL backend and React Native/Expo web frontend that classifies cloud types in photographs using an Ollama LLM. The suite is orchestrated with the [RETORCH](https://github.com/giis-uniovi/retorch) framework and covers two complementary layers:
+Test suite for **EPI-ClimaNuvem**, a FastAPI + PostgreSQL backend and React Native/Expo web frontend that classifies cloud types in photographs using an Ollama LLM. The suite covers two complementary layers:
 
 - **API tests** — HTTP-level tests that call the REST endpoints directly (no browser, no Ollama required).
-- **Browser (E2E) tests** — Selenium WebDriver tests that drive the Expo web frontend through Chrome, using the **Page Object pattern**.
+- **Login system tests** — Selenium/JUnit tests that drive the Expo web frontend through Chrome, using the **Page Object pattern**. These tests do not use RETORCH annotations.
 
 ---
 
@@ -107,7 +107,7 @@ The SUT uses Firebase ID tokens in production. For testing, environment variable
 
 `TEST_MODE=true` accepts **any** non-empty Bearer token so that:
 - API tests send the fixed `TEST_TOKEN`.
-- E2E browser tests send real Firebase anonymous tokens obtained via "Continuar como invitado".
+- Selenium guest-login tests send real Firebase anonymous tokens obtained via "Continuar como invitado".
 
 **Modified backend files (inside `epi-climanuvem/backend/`):**
 - `app/infrastructure/config.py` — declares the four test-mode vars
@@ -144,11 +144,11 @@ retorch-st-climanuvem/
 ├── src/test/java/epigijon/climanuvem/e2e/functional/
 │   ├── common/
 │   │   ├── BaseApiClass.java           ← HTTP plumbing, auth token, multipart upload, fixtures
-│   │   └── BaseLoggedClass.java        ← Selenium browser lifecycle; onWelcomePage() / loginAsGuest()
+│   │   └── BaseLoggedClass.java        ← Selenium browser lifecycle and login configuration
 │   ├── pages/                          ← Page Object Model (one class per screen)
 │   │   ├── BasePage.java               ← Shared WebDriver, wait, isPresent/click/fill helpers
 │   │   ├── WelcomePage.java            ← Root screen — clickLoginButton() / clickAnonymousLogin()
-│   │   ├── LoginPage.java              ← Login form — enterEmail/Password(), clickRegisterLink()
+│   │   ├── LoginPage.java              ← Login form — email/password submit, Google provider start, failures
 │   │   ├── RegisterPage.java           ← Register form — enterUsername/Email/Password()
 │   │   ├── HomePage.java               ← Home screen — clickAnalyzeImage() / clickLogout()
 │   │   └── CapturePage.java            ← Capture screen — query methods only
@@ -160,14 +160,13 @@ retorch-st-climanuvem/
 │       │   ├── TestApiHistory.java     ← GET /analysis/history
 │       │   ├── TestApiDelete.java      ← DELETE /analysis/{id}, /user-data
 │       │   └── TestApiCancel.java      ← PATCH /analysis/{id}/cancel
-│       └── e2e/                        ← Browser (Selenium + Page Object) tests
-│           ├── TestWelcomeScreen.java  ← Welcome screen branding and navigation
-│           ├── TestLoginForm.java      ← Login form structure and input behaviour
-│           ├── TestHomeScreen.java     ← Home screen after anonymous login
-│           └── TestCaptureScreen.java  ← Capture screen after anonymous login
+│       └── e2e/                        ← Selenium/JUnit system tests
+│           ├── TestLoginSystem.java    ← Base Choice login coverage
+│           ├── TestRegisterSystem.java ← Base Choice account-creation coverage
+│           └── TestProfileSystem.java  ← Hierarchical profile-configuration coverage
 │
 ├── src/test/resources/
-│   ├── test.properties                 ← LOCALHOST_URL, FRONTEND_URL, TEST_TOKEN
+│   ├── test.properties                 ← URLs, TEST_TOKEN, login test defaults
 │   └── log4j2.xml
 │
 ├── .retorch/
@@ -191,9 +190,8 @@ retorch-st-climanuvem/
 | Apache HttpClient 4.5.14 | HTTP client for API requests |
 | Apache HttpMime 4.5.14 | Multipart entity builder (image upload) |
 | Gson 2.14.0 | JSON parsing |
-| Selenium 4.44.0 | Browser automation (E2E tests) |
-| Selema 4.0.2 | WebDriver lifecycle manager (`giis.selema.manager.*`) |
-| RETORCH annotations | `@AccessMode` resource declarations |
+| Selenium 4.44.0 | Browser automation for login system tests |
+| RETORCH annotations | `@AccessMode` resource declarations used by API tests |
 | Log4j2 + SLF4J | Structured logging |
 | `javax.imageio.ImageIO` (JDK) | Creates minimal 10×10 JPEG test images in memory |
 
@@ -217,8 +215,13 @@ retorch-st-climanuvem/
 LOCALHOST_URL=http://localhost:8000
 FRONTEND_URL=http://localhost:5173
 TEST_TOKEN=test-token-climanuvem
+LOGIN_UNKNOWN_EMAIL=missing-user@example.com
+LOGIN_WRONG_PASSWORD=wrong-password
+PROFILE_LOGIN_EMAIL=
+PROFILE_LOGIN_PASSWORD=
+FIREBASE_WEB_API_KEY=
 ```
-All values can be overridden via system properties (`-DSUT_URL=…`, `-DTEST_TOKEN=…`, `-DFRONTEND_URL=…`) or matching environment variables.
+All values can be overridden via system properties (`-DSUT_URL=…`, `-DTEST_TOKEN=…`, `-DFRONTEND_URL=…`) or matching environment variables. The email success cases in `TestLoginSystem` require `LOGIN_EXISTING_EMAIL` and `LOGIN_EXISTING_PASSWORD`; `TestRegisterSystem` uses `LOGIN_EXISTING_EMAIL` for the "email already in use" case. `TestProfileSystem` uses `PROFILE_LOGIN_EMAIL` and `PROFILE_LOGIN_PASSWORD` for authenticated profile tests, falling back to the login credentials when profile-specific values are not set. The successful registration case expects the email-verification dialog, and if `FIREBASE_WEB_API_KEY` is configured, the created account is deleted through Firebase Auth REST after the test.
 
 ### `src/test/resources/log4j2.xml`
 Logs to `target/testlogs/log${sys:TJOB_NAME:-testinglocal}-test.log`. The `epigijon` logger runs at DEBUG level.
@@ -243,10 +246,18 @@ mvn test
 # 3. Run only API tests
 mvn test -Dtest="TestApi*"
 
-# 4. Run only E2E browser tests (add -DCI=true for headless)
-mvn test -Dtest="TestWelcomeScreen,TestLoginForm,TestHomeScreen,TestCaptureScreen"
+# 4. Run only login system tests (add -DCI=true for headless)
+mvn test -Dtest="TestLoginSystem" -DLOGIN_EXISTING_EMAIL="<email>" \
+         -DLOGIN_EXISTING_PASSWORD="<password>" -DCI=true
 
-# 5. Tear down when done
+# 5. Run only account-creation system tests
+mvn test -Dtest="TestRegisterSystem" -DLOGIN_EXISTING_EMAIL="<email>" -DCI=true
+
+# 6. Run only profile-configuration system tests
+mvn test -Dtest="TestProfileSystem" -DPROFILE_LOGIN_EMAIL="<verified-email>" \
+         -DPROFILE_LOGIN_PASSWORD="<password>" -DCI=true
+
+# 7. Tear down when done
 ./deploy-local.sh --down
 ./deploy-local.ps1 -Down
 ```
@@ -273,7 +284,11 @@ Every navigation action returns the next page object, so the compiler catches ba
 ```
 WelcomePage → clickLoginButton()     → LoginPage
 WelcomePage → clickAnonymousLogin()  → HomePage
+LoginPage   → submitLogin()          → LoginPage
+LoginPage   → waitForHome()          → HomePage
 LoginPage   → clickRegisterLink()    → RegisterPage
+RegisterPage → submitRegister()      → RegisterPage
+RegisterPage → waitForHome()         → HomePage
 HomePage    → clickAnalyzeImage()    → CapturePage
 HomePage    → clickLogout()          → WelcomePage
 ```
@@ -300,18 +315,18 @@ HomePage    → clickLogout()          → WelcomePage
 ### Typical test shape
 
 ```java
-// Structural — no auth needed
+// Login failure
 @Test
-void testBrandingIsVisible() {
-    WelcomePage page = onWelcomePage();
-    Assertions.assertTrue(page.isAppTitleVisible());
+void emptyPasswordIsRejected() {
+    LoginPage page = onWelcomePage().clickLoginButton()
+        .login(existingLoginEmail, "");
+    Assertions.assertTrue(page.waitForLoginFailure().hasLoginErrorOrValidation());
 }
 
-// Authenticated — guest login
+// Authenticated guest login
 @Test
-void testAnalyzeImageNavigatesToCapturePage() {
-    Assertions.assertTrue(
-        loginAsGuest().clickAnalyzeImage().isCameraOptionVisible());
+void guestLoginReachesHome() {
+    Assertions.assertTrue(loginAsGuest().isWelcomeMessageVisible());
 }
 ```
 
@@ -351,7 +366,7 @@ void testAnalyzeImageNavigatesToCapturePage() {
 The background worker calls Ollama and on error sets `status='cancelled'`. Without disabling it the cancel test is racy. `DISABLE_WORKER=true` keeps every uploaded analysis in `'analyzing'` so `PATCH /cancel` always returns 200.
 
 ### TEST_MODE accepts any Bearer token
-API tests send the fixed `TEST_TOKEN`; E2E browser tests send real Firebase anonymous tokens. Accepting any token in `TEST_MODE` means both suites work against the same backend without needing a Firebase emulator.
+API tests send the fixed `TEST_TOKEN`; Selenium guest-login tests send real Firebase anonymous tokens. Accepting any token in `TEST_MODE` means both suites work against the same backend without needing a Firebase emulator.
 
 ### Page Object navigation returns typed page objects
 Every navigation method returns the next screen's page object. This enforces correct flows at compile time and makes test intent readable without comments.

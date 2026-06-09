@@ -28,8 +28,6 @@
 
 		<selenium-java.version>4.44.0</selenium-java.version>
 
-		<selema.version>4.0.2</selema.version>
-
 		<retorch-tool.version>1.2.0</retorch-tool.version>
 
 	</properties>
@@ -57,12 +55,6 @@
 			<groupId>org.seleniumhq.selenium</groupId>
 			<artifactId>selenium-java</artifactId>
 			<version>${selenium-java.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>io.github.javiertuya</groupId>
-			<artifactId>selema</artifactId>
-			<version>${selema.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
