@@ -26,11 +26,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Random;
 import java.util.Properties;
 
 /**
@@ -51,6 +54,24 @@ public class BaseApiClass {
     protected static Properties properties;
     protected static String tJobName;
     private static final int HTTP_TIMEOUT_MS = 10000;
+
+    protected static class ApiResponse {
+        private final int statusCode;
+        private final String body;
+
+        ApiResponse(int statusCode, String body) {
+            this.statusCode = statusCode;
+            this.body = body;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public String getBody() {
+            return body;
+        }
+    }
 
     @BeforeAll
     static void setupAll() throws IOException {
@@ -171,6 +192,54 @@ public class BaseApiClass {
         return statusOf(request);
     }
 
+    protected String uploadImage(String url, byte[] imageBytes, String filename, ContentType contentType,
+            String location, boolean includeExplainability) throws IOException {
+        return uploadImageResponse(url, imageBytes, filename, contentType, location, includeExplainability).getBody();
+    }
+
+    protected ApiResponse uploadImageResponse(String url, byte[] imageBytes, String filename, ContentType contentType,
+            String location, boolean includeExplainability) throws IOException {
+        HttpPost request = new HttpPost(url);
+        request.addHeader("Authorization", "Bearer " + testToken);
+        HttpEntity entity = MultipartEntityBuilder.create()
+                .addPart("file", new ByteArrayBody(imageBytes, contentType, filename))
+                .addPart("location", new StringBody(location, ContentType.TEXT_PLAIN))
+                .addPart("include_explainability", new StringBody(String.valueOf(includeExplainability),
+                        ContentType.TEXT_PLAIN))
+                .build();
+        request.setEntity(entity);
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            HttpEntity responseEntity = response.getEntity();
+            String body = responseEntity != null ? EntityUtils.toString(responseEntity) : "";
+            log.debug("POST(upload) {} -> {} ({} chars)", url, response.getStatusLine().getStatusCode(), body.length());
+            return new ApiResponse(response.getStatusLine().getStatusCode(), body);
+        }
+    }
+
+    protected int uploadImageStatus(String url, byte[] imageBytes, String filename, ContentType contentType,
+            String location, boolean includeExplainability) throws IOException {
+        HttpPost request = new HttpPost(url);
+        request.addHeader("Authorization", "Bearer " + testToken);
+        HttpEntity entity = MultipartEntityBuilder.create()
+                .addPart("file", new ByteArrayBody(imageBytes, contentType, filename))
+                .addPart("location", new StringBody(location, ContentType.TEXT_PLAIN))
+                .addPart("include_explainability", new StringBody(String.valueOf(includeExplainability),
+                        ContentType.TEXT_PLAIN))
+                .build();
+        request.setEntity(entity);
+        return statusOf(request);
+    }
+
+    protected int uploadWithoutFileStatus(String url, String location) throws IOException {
+        HttpPost request = new HttpPost(url);
+        request.addHeader("Authorization", "Bearer " + testToken);
+        HttpEntity entity = MultipartEntityBuilder.create()
+                .addPart("location", new StringBody(location, ContentType.TEXT_PLAIN))
+                .build();
+        request.setEntity(entity);
+        return statusOf(request);
+    }
+
     private int statusOf(HttpUriRequest request) throws IOException {
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             EntityUtils.consumeQuietly(response.getEntity());
@@ -192,6 +261,39 @@ public class BaseApiClass {
 
     protected JsonArray getJsonArrayAuth(String url) throws IOException {
         return JsonParser.parseString(getAuth(url)).getAsJsonArray();
+    }
+
+    protected JsonObject findAnalysisInHistory(int analysisId) throws IOException {
+        JsonArray history = getJsonArrayAuth(analysisUrl("/history"));
+        String expectedId = String.valueOf(analysisId);
+        for (JsonElement element : history) {
+            if (element.isJsonObject()) {
+                JsonObject object = element.getAsJsonObject();
+                if (object.has("id") && expectedId.equals(object.get("id").getAsString())) {
+                    return object;
+                }
+            }
+        }
+        return null;
+    }
+
+    protected JsonObject waitForAnalysisTerminalStatus(int analysisId, long timeoutMillis, long pollMillis)
+            throws IOException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        JsonObject lastSeen = null;
+
+        while (System.currentTimeMillis() < deadline) {
+            lastSeen = findAnalysisInHistory(analysisId);
+            if (lastSeen != null && lastSeen.has("status")) {
+                String status = lastSeen.get("status").getAsString();
+                if ("completed".equals(status) || "cancelled".equals(status)) {
+                    return lastSeen;
+                }
+            }
+            sleepQuietly(pollMillis);
+        }
+
+        return lastSeen;
     }
 
     protected static boolean containsByField(JsonArray array, String fieldName, String expected) {
@@ -221,6 +323,57 @@ public class BaseApiClass {
         return baos.toByteArray();
     }
 
+    protected static byte[] createCloudyJpeg() throws IOException {
+        BufferedImage img = new BufferedImage(640, 360, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = img.createGraphics();
+        try {
+            graphics.setColor(new Color(98, 171, 232));
+            graphics.fillRect(0, 0, img.getWidth(), img.getHeight());
+            graphics.setColor(new Color(245, 248, 250));
+            graphics.fillOval(120, 95, 180, 95);
+            graphics.fillOval(235, 70, 210, 125);
+            graphics.fillOval(380, 115, 150, 80);
+            graphics.fillRect(175, 145, 310, 75);
+            graphics.setColor(new Color(225, 232, 238));
+            graphics.fillOval(210, 175, 170, 55);
+        } finally {
+            graphics.dispose();
+        }
+        return writeJpeg(img);
+    }
+
+    protected static byte[] createNoCloudJpeg() throws IOException {
+        BufferedImage img = new BufferedImage(640, 360, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = img.createGraphics();
+        try {
+            for (int y = 0; y < img.getHeight(); y++) {
+                float ratio = (float) y / (float) img.getHeight();
+                int red = 70 + Math.round(35 * ratio);
+                int green = 155 + Math.round(45 * ratio);
+                int blue = 225 + Math.round(25 * ratio);
+                graphics.setColor(new Color(red, green, blue));
+                graphics.drawLine(0, y, img.getWidth(), y);
+            }
+        } finally {
+            graphics.dispose();
+        }
+        return writeJpeg(img);
+    }
+
+    protected static byte[] createEmptyImageBytes() {
+        return new byte[0];
+    }
+
+    protected static byte[] createTooLargePayload() {
+        byte[] payload = new byte[(5 * 1024 * 1024) + 1];
+        new Random(42).nextBytes(payload);
+        return payload;
+    }
+
+    protected static byte[] createNonJpegPayload() {
+        return "not-a-jpeg-image".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     /**
      * Uploads a test image to {@code POST /analysis/upload} and returns the assigned analysis ID.
      */
@@ -237,5 +390,20 @@ public class BaseApiClass {
     protected void deleteAllUserData() throws IOException {
         deleteStatusAuth(analysisUrl("/user-data"));
         log.debug("Deleted all user data for test user");
+    }
+
+    private static byte[] writeJpeg(BufferedImage img) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(img, "jpg", baos);
+        return baos.toByteArray();
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while waiting for analysis processing", e);
+        }
     }
 }

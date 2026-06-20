@@ -66,6 +66,32 @@ mvn test -Dtest="TestProfileSystem" -DPROFILE_LOGIN_EMAIL="verified-user@example
 mvn test -Dtest=TestApiCancel
 ```
 
+### Real image-analysis tests with Ollama
+
+The normal deployment starts the backend with `DISABLE_WORKER=true`, so `mvn test`
+does not run the real image-analysis suite and does not require Ollama. To test
+the full image-analysis flow, start the optional Ollama environment explicitly:
+
+```bash
+# Linux / macOS
+./deploy-local.sh --with-ollama
+
+# Windows PowerShell
+./deploy-local.ps1 -WithOllama
+```
+
+Then run only the real image-analysis tests:
+
+```bash
+mvn test -Dtest=TestApiImageAnalysisSystem -DREAL_OLLAMA_TESTS=true
+```
+
+`--with-ollama` / `-WithOllama` enables the analysis worker, starts an Ollama
+container, and pulls `gemma4:e4b`. The first run can take longer while the model
+is downloaded. These tests validate the real upload and processing flow: image
+upload, history polling, cloud detection, explainability boxes, no-cloud images,
+and file validation cases.
+
 ### 3 — Tear down
 
 ```bash
@@ -123,6 +149,7 @@ src/test/java/epigijon/climanuvem/e2e/functional/
     │   ├── TestApiPing.java
     │   ├── TestApiAuth.java
     │   ├── TestApiAnalysis.java
+    │   ├── TestApiImageAnalysisSystem.java
     │   ├── TestApiHistory.java
     │   ├── TestApiDelete.java
     │   └── TestApiCancel.java
@@ -155,3 +182,6 @@ The backend is started with `TEST_MODE=true` and `DISABLE_WORKER=true` (see `doc
 - **Any Bearer token** is accepted — API tests use a fixed token; Selenium guest-login tests use real Firebase anonymous tokens.
 - **Firebase is not initialised** — no service account key is needed.
 - **Ollama worker is disabled** — analyses stay in `analyzing` state, making cancel tests deterministic.
+
+The optional real image-analysis suite has its own Ollama deployment flow in
+the quick-start section above.

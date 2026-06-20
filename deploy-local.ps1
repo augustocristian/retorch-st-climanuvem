@@ -5,13 +5,17 @@
     Tear down the running deployment instead of starting it.
 .PARAMETER Port
     Host port for the backend (default: 8000). Frontend is always on 5173.
+.PARAMETER WithOllama
+    Start the real analysis worker and an Ollama container for image-analysis system tests.
 .EXAMPLE
     .\deploy-local.ps1
     .\deploy-local.ps1 -Port 9000
+    .\deploy-local.ps1 -WithOllama
     .\deploy-local.ps1 -Down
 #>
 param(
     [switch]$Down,
+    [switch]$WithOllama,
     [int]$Port = 8000
 )
 
@@ -20,9 +24,16 @@ $ErrorActionPreference = "Stop"
 $SUT_REPO      = "https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem.git"
 $SUT_DIR       = "..\epi-climanuvem"
 $COMPOSE_FILE  = "docker-compose.test.yml"
+$OLLAMA_COMPOSE_FILE = "docker-compose.ollama-test.yml"
 $PROJECT_NAME  = "climanuvem-test"
 $MAX_WAIT_SECS = 180
 $POLL_INTERVAL = 5
+$OLLAMA_MODEL  = "gemma4:e4b"
+
+$composeFiles = @("-f", $COMPOSE_FILE)
+if ($WithOllama -or $Down) {
+    $composeFiles += @("-f", $OLLAMA_COMPOSE_FILE)
+}
 
 function Write-Step([string]$msg) { Write-Host "[>] $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "[+] $msg" -ForegroundColor Green }
@@ -49,7 +60,7 @@ Write-OK "Prerequisites satisfied."
 # ── Teardown mode ──────────────────────────────────────────────────────────────
 if ($Down) {
     Write-Step "Tearing down project '$PROJECT_NAME'..."
-    docker compose -f $COMPOSE_FILE -p $PROJECT_NAME down --volumes
+    docker compose @composeFiles -p $PROJECT_NAME down --volumes
     if ($LASTEXITCODE -ne 0) { Write-Fail "docker compose down failed." }
     Write-OK "Teardown complete."
     exit 0
@@ -68,15 +79,22 @@ if (-not (Test-Path $SUT_DIR)) {
 
 # ── Build images ──────────────────────────────────────────────────────────────
 Write-Step "Building Docker images..."
-docker compose -f $COMPOSE_FILE -p $PROJECT_NAME build
+docker compose @composeFiles -p $PROJECT_NAME build
 if ($LASTEXITCODE -ne 0) { Write-Fail "docker compose build failed." }
 Write-OK "Images built."
 
 # ── Start containers ──────────────────────────────────────────────────────────
 Write-Step "Starting containers (project: '$PROJECT_NAME')..."
-docker compose -f $COMPOSE_FILE -p $PROJECT_NAME up -d
+docker compose @composeFiles -p $PROJECT_NAME up -d
 if ($LASTEXITCODE -ne 0) { Write-Fail "docker compose up failed." }
 Write-OK "Containers started."
+
+if ($WithOllama) {
+    Write-Step "Ensuring Ollama model '$OLLAMA_MODEL' is available..."
+    docker compose @composeFiles -p $PROJECT_NAME exec -T ollama ollama pull $OLLAMA_MODEL
+    if ($LASTEXITCODE -ne 0) { Write-Fail "ollama pull '$OLLAMA_MODEL' failed." }
+    Write-OK "Ollama model '$OLLAMA_MODEL' is ready."
+}
 
 # ── Wait for backend ──────────────────────────────────────────────────────────
 $backendUrl = "http://localhost:$Port"
@@ -96,8 +114,8 @@ while ($elapsed -lt $MAX_WAIT_SECS) {
 
 if (-not $ready) {
     Write-Host "[!] Backend did not become healthy." -ForegroundColor Red
-    docker compose -f $COMPOSE_FILE -p $PROJECT_NAME logs --tail 50
-    docker compose -f $COMPOSE_FILE -p $PROJECT_NAME down --volumes
+    docker compose @composeFiles -p $PROJECT_NAME logs --tail 50
+    docker compose @composeFiles -p $PROJECT_NAME down --volumes
     exit 1
 }
 Write-OK "Backend is ready at $backendUrl"
@@ -125,7 +143,7 @@ if ($ready) {
     Write-OK "  Frontend → $frontendUrl"
 } else {
     Write-Host "[!] Frontend did not become healthy." -ForegroundColor Red
-    docker compose -f $COMPOSE_FILE -p $PROJECT_NAME logs --tail 50
-    docker compose -f $COMPOSE_FILE -p $PROJECT_NAME down --volumes
+    docker compose @composeFiles -p $PROJECT_NAME logs --tail 50
+    docker compose @composeFiles -p $PROJECT_NAME down --volumes
     exit 1
 }
