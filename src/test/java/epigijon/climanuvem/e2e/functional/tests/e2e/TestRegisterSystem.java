@@ -40,78 +40,42 @@ class TestRegisterSystem extends BaseLoggedClass {
     }
 
     @Test
-    @DisplayName("2 - Empty username is rejected")
-    void emptyUsernameIsRejected() {
-        assertRegistrationRejected("", uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
-                "Empty username must be rejected");
-    }
-
-    @Test
-    @DisplayName("3 - Two-character username is rejected")
-    void twoCharacterUsernameIsRejected() {
-        assertRegistrationRejected(USERNAME_2, uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
-                "Two-character username must be rejected");
-    }
-
-    @Test
-    @DisplayName("4 - Twenty-one-character username is rejected")
-    void twentyOneCharacterUsernameIsRejected() {
-        assertRegistrationRejected(USERNAME_21, uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
-                "Twenty-one-character username must be rejected");
-    }
-
-    @Test
-    @DisplayName("5 - Invalid email is rejected")
-    void invalidEmailIsRejected() {
-        assertRegistrationRejected(VALID_USERNAME_20, "correo-invalido", VALID_PASSWORD, VALID_PASSWORD,
-                "Invalid email must be rejected");
-    }
-
-    @Test
-    @DisplayName("6 - Email already in use is rejected")
-    void emailAlreadyInUseIsRejected() {
+    @DisplayName("2 - Username and email validation errors are rejected")
+    void usernameAndEmailValidationErrorsAreRejected() {
         requireConfiguredEmailLogin();
 
-        assertRegistrationRejected(VALID_USERNAME_20, existingLoginEmail, VALID_PASSWORD, VALID_PASSWORD,
-                "Email already in use must be rejected");
+        Assertions.assertAll(
+                () -> assertRegistrationRejected("", uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
+                        "Empty username must be rejected"),
+                () -> assertRegistrationRejected(USERNAME_2, uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
+                        "Two-character username must be rejected"),
+                () -> assertRegistrationRejected(USERNAME_21, uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
+                        "Twenty-one-character username must be rejected"),
+                () -> assertRegistrationRejected(VALID_USERNAME_20, "correo-invalido", VALID_PASSWORD, VALID_PASSWORD,
+                        "Invalid email must be rejected"),
+                () -> assertRegistrationRejected(VALID_USERNAME_20, existingLoginEmail, VALID_PASSWORD, VALID_PASSWORD,
+                        "Email already in use must be rejected")
+        );
     }
 
     @Test
-    @DisplayName("7 - Empty password is rejected")
-    void emptyPasswordIsRejected() {
-        assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(), "", "",
-                "Empty password must be rejected");
-    }
-
-    @Test
-    @DisplayName("8 - Five-character password is rejected")
-    void fiveCharacterPasswordIsRejected() {
-        assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(), PASSWORD_5, PASSWORD_5,
-                "Five-character password must be rejected");
-    }
-
-    @Test
-    @DisplayName("9 - Six-character password without uppercase is rejected")
-    void passwordWithoutUppercaseIsRejected() {
-        assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(),
-                PASSWORD_NO_UPPERCASE, PASSWORD_NO_UPPERCASE,
-                "Password without uppercase letters must be rejected");
-    }
-
-    @Test
-    @DisplayName("10 - Six-character password without number is rejected")
-    void passwordWithoutNumberIsRejected() {
-        assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(),
-                PASSWORD_NO_NUMBER, PASSWORD_NO_NUMBER,
-                "Password without numbers must be rejected");
-    }
-
-    @Test
-    @DisplayName("11 - Non-matching password confirmation is rejected")
-    void nonMatchingPasswordConfirmationIsRejected() {
-        assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(),
-                VALID_PASSWORD, DIFFERENT_CONFIRM_PASSWORD,
-                "Non-matching password confirmation must be rejected");
+    @DisplayName("3 - Password and confirmation validation errors are rejected")
+    void passwordAndConfirmationValidationErrorsAreRejected() {
+        Assertions.assertAll(
+                () -> assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(), "", "",
+                        "Empty password must be rejected"),
+                () -> assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(), PASSWORD_5, PASSWORD_5,
+                        "Five-character password must be rejected"),
+                () -> assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(),
+                        PASSWORD_NO_UPPERCASE, PASSWORD_NO_UPPERCASE,
+                        "Password without uppercase letters must be rejected"),
+                () -> assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(),
+                        PASSWORD_NO_NUMBER, PASSWORD_NO_NUMBER,
+                        "Password without numbers must be rejected"),
+                () -> assertRegistrationRejected(VALID_USERNAME_20, uniqueRegisterEmail(),
+                        VALID_PASSWORD, DIFFERENT_CONFIRM_PASSWORD,
+                        "Non-matching password confirmation must be rejected")
+        );
     }
 
     private RegisterPage openRegisterPage() {

@@ -14,59 +14,36 @@ class TestProfileSystem extends BaseLoggedClass {
 
     private static final String USERNAME_0 = "";
     private static final String USERNAME_2 = "ab";
-    private static final String USERNAME_20 = "perfilPrueba12345678";
+    private static final String USERNAME_20_A = "perfilPrueba12345678";
+    private static final String USERNAME_20_B = "perfilPrueba87654321";
     private static final String USERNAME_21 = "perfilPrueba123456789";
 
     @Test
-    @DisplayName("Guest session - light theme can be selected")
-    void guestCanSelectLightTheme() {
-        ProfilePage profilePage = openGuestProfile().chooseLightTheme();
+    @DisplayName("Guest session - theme and language preferences can be selected")
+    void guestCanSelectThemeAndLanguagePreferences() {
+        ProfilePage profilePage = openGuestProfile();
 
+        profilePage.chooseLightTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("light"),
                 "Guest profile must store the light theme preference");
-    }
 
-    @Test
-    @DisplayName("Guest session - dark theme can be selected")
-    void guestCanSelectDarkTheme() {
-        ProfilePage profilePage = openGuestProfile().chooseDarkTheme();
-
+        profilePage.chooseDarkTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("dark"),
                 "Guest profile must store the dark theme preference");
-    }
 
-    @Test
-    @DisplayName("Guest session - system theme can be selected")
-    void guestCanSelectSystemTheme() {
-        ProfilePage profilePage = openGuestProfile().chooseSystemTheme();
-
+        profilePage.chooseSystemTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("system"),
                 "Guest profile must store the system theme preference");
-    }
 
-    @Test
-    @DisplayName("Guest session - English language can be selected")
-    void guestCanSelectEnglishLanguage() {
-        ProfilePage profilePage = openGuestProfile().chooseEnglishLanguage();
-
+        profilePage.chooseEnglishLanguage();
         Assertions.assertTrue(profilePage.hasStoredLanguage("en"),
                 "Guest profile must store the English language preference");
-    }
 
-    @Test
-    @DisplayName("Guest session - Spanish language can be selected")
-    void guestCanSelectSpanishLanguage() {
-        ProfilePage profilePage = openGuestProfile().chooseSpanishLanguage();
-
+        profilePage.chooseSpanishLanguage();
         Assertions.assertTrue(profilePage.hasStoredLanguage("es"),
                 "Guest profile must store the Spanish language preference");
-    }
 
-    @Test
-    @DisplayName("Guest session - system language can be selected")
-    void guestCanSelectSystemLanguage() {
-        ProfilePage profilePage = openGuestProfile().chooseSystemLanguage();
-
+        profilePage.chooseSystemLanguage();
         Assertions.assertTrue(profilePage.hasStoredLanguage("system"),
                 "Guest profile must store the system language preference");
     }
@@ -86,96 +63,56 @@ class TestProfileSystem extends BaseLoggedClass {
     }
 
     @Test
-    @DisplayName("Authenticated session - zero-character username is blocked")
-    void authenticatedZeroCharacterUsernameIsBlocked() {
-        ProfilePage profilePage = openAuthenticatedProfile()
-                .setUsername(USERNAME_0);
+    @DisplayName("Authenticated session - username length rules are enforced")
+    void authenticatedUsernameLengthRulesAreEnforced() {
+        ProfilePage profilePage = openAuthenticatedProfile();
+        String validUsername20 = username20DifferentFrom(profilePage.currentUsername());
 
-        Assertions.assertFalse(profilePage.isSaveButtonEnabled(),
-                "Zero-character username must keep the save action disabled");
-    }
-
-    @Test
-    @DisplayName("Authenticated session - two-character username is blocked")
-    void authenticatedTwoCharacterUsernameIsBlocked() {
-        ProfilePage profilePage = openAuthenticatedProfile()
-                .setUsername(USERNAME_2);
-
-        Assertions.assertFalse(profilePage.isSaveButtonEnabled(),
-                "Two-character username must keep the save action disabled");
-    }
-
-    @Test
-    @DisplayName("Authenticated session - twenty-character username can be saved")
-    void authenticatedTwentyCharacterUsernameCanBeSaved() {
-        ProfilePage profilePage = openAuthenticatedProfile()
-                .updateUsername(USERNAME_20)
-                .waitForProfileFeedback();
-
+        profilePage.updateUsername(validUsername20)
+                .waitForProfileFeedback()
+                .closeProfileFeedback();
         Assertions.assertTrue(profilePage.isUsernameSectionVisible(),
                 "Twenty-character username must be accepted and keep the user on Profile");
-    }
 
-    @Test
-    @DisplayName("Authenticated session - twenty-one-character username is blocked")
-    void authenticatedTwentyOneCharacterUsernameIsBlocked() {
-        ProfilePage profilePage = openAuthenticatedProfile()
-                .setUsername(USERNAME_21);
+        profilePage.setUsername(USERNAME_0);
+        Assertions.assertFalse(profilePage.isSaveButtonEnabled(),
+                "Zero-character username must keep the save action disabled");
 
+        profilePage.setUsername(USERNAME_2);
+        Assertions.assertFalse(profilePage.isSaveButtonEnabled(),
+                "Two-character username must keep the save action disabled");
+
+        profilePage.setUsername(USERNAME_21);
         Assertions.assertFalse(profilePage.isSaveButtonEnabled(),
                 "Twenty-one-character username must keep the save action disabled");
     }
 
     @Test
-    @DisplayName("Authenticated session - light theme can be selected")
-    void authenticatedCanSelectLightTheme() {
-        ProfilePage profilePage = openAuthenticatedProfile().chooseLightTheme();
+    @DisplayName("Authenticated session - theme and language preferences can be selected")
+    void authenticatedCanSelectThemeAndLanguagePreferences() {
+        ProfilePage profilePage = openAuthenticatedProfile();
 
+        profilePage.chooseLightTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("light"),
                 "Authenticated profile must store the light theme preference");
-    }
 
-    @Test
-    @DisplayName("Authenticated session - dark theme can be selected")
-    void authenticatedCanSelectDarkTheme() {
-        ProfilePage profilePage = openAuthenticatedProfile().chooseDarkTheme();
-
+        profilePage.chooseDarkTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("dark"),
                 "Authenticated profile must store the dark theme preference");
-    }
 
-    @Test
-    @DisplayName("Authenticated session - system theme can be selected")
-    void authenticatedCanSelectSystemTheme() {
-        ProfilePage profilePage = openAuthenticatedProfile().chooseSystemTheme();
-
+        profilePage.chooseSystemTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("system"),
                 "Authenticated profile must store the system theme preference");
-    }
 
-    @Test
-    @DisplayName("Authenticated session - English language can be selected")
-    void authenticatedCanSelectEnglishLanguage() {
-        ProfilePage profilePage = openAuthenticatedProfile().chooseEnglishLanguage();
-
+        profilePage.chooseEnglishLanguage();
         Assertions.assertTrue(profilePage.hasStoredLanguage("en"),
                 "Authenticated profile must store the English language preference");
-    }
 
-    @Test
-    @DisplayName("Authenticated session - Spanish language can be selected")
-    void authenticatedCanSelectSpanishLanguage() {
-        ProfilePage profilePage = openAuthenticatedProfile().chooseSpanishLanguage();
-
+        profilePage.chooseSpanishLanguage();
         Assertions.assertTrue(profilePage.hasStoredLanguage("es"),
                 "Authenticated profile must store the Spanish language preference");
-    }
 
-    @Test
-    @DisplayName("Authenticated session - system language can be selected")
-    void authenticatedCanSelectSystemLanguage() {
-        ProfilePage profilePage = openAuthenticatedProfile().chooseSystemLanguage();
-
+        profilePage.chooseSystemLanguage();
         Assertions.assertTrue(profilePage.hasStoredLanguage("system"),
                 "Authenticated profile must store the system language preference");
     }
@@ -196,5 +133,12 @@ class TestProfileSystem extends BaseLoggedClass {
                         "Authenticated profile must show delete-account action")
         );
         return profilePage;
+    }
+
+    private String username20DifferentFrom(String currentUsername) {
+        if (USERNAME_20_A.equals(currentUsername)) {
+            return USERNAME_20_B;
+        }
+        return USERNAME_20_A;
     }
 }

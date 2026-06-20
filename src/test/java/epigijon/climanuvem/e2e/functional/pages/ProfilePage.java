@@ -18,6 +18,10 @@ public class ProfilePage extends BasePage {
     private static final By DELETE_ACCOUNT = anyInteractiveText("Eliminar Cuenta", "Delete Account");
     private static final By CONFIRM_DELETE = anyInteractiveText("Sí, eliminar", "Yes, delete");
     private static final By CANCEL = anyInteractiveText("Cancelar", "Cancel");
+    private static final By ACCEPT = By.xpath("//*[@role='button' or self::button or @tabindex]"
+            + "[contains(normalize-space(.),'Aceptar')"
+            + " or contains(normalize-space(.),'Accept')"
+            + " or contains(normalize-space(.),'OK')]");
     private static final By USERNAME_INPUT = By.cssSelector("input");
     private static final By SAVE_BUTTON = anyInteractiveText("Guardar Cambios", "Save Changes");
     private static final By STATUS_FEEDBACK = By.xpath(
@@ -116,17 +120,13 @@ public class ProfilePage extends BasePage {
     }
 
     public ProfilePage setUsername(String username) {
-        WebElement input = wait.until(webDriver -> {
-            List<WebElement> inputs = driver.findElements(USERNAME_INPUT);
-            for (WebElement candidate : inputs) {
-                if (candidate.isDisplayed()) {
-                    return candidate;
-                }
-            }
-            return null;
-        });
+        WebElement input = visibleUsernameInput();
         fillElement(input, username);
         return this;
+    }
+
+    public String currentUsername() {
+        return visibleUsernameInput().getAttribute("value");
     }
 
     public boolean isSaveButtonEnabled() {
@@ -143,6 +143,12 @@ public class ProfilePage extends BasePage {
 
     public ProfilePage waitForProfileFeedback() {
         wait.until(ExpectedConditions.visibilityOfElementLocated(STATUS_FEEDBACK));
+        return this;
+    }
+
+    public ProfilePage closeProfileFeedback() {
+        click(ACCEPT);
+        wait.until(webDriver -> !isPresent(STATUS_FEEDBACK));
         return this;
     }
 
@@ -187,6 +193,18 @@ public class ProfilePage extends BasePage {
 
     private void waitForStoredValue(String key, String expectedValue) {
         waitUntil(webDriver -> expectedValue.equals(storedValue(key)));
+    }
+
+    private WebElement visibleUsernameInput() {
+        return wait.until(webDriver -> {
+            List<WebElement> inputs = driver.findElements(USERNAME_INPUT);
+            for (WebElement candidate : inputs) {
+                if (candidate.isDisplayed()) {
+                    return candidate;
+                }
+            }
+            return null;
+        });
     }
 
     private String storedValue(String key) {
