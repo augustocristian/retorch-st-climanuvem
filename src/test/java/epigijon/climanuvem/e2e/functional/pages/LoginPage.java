@@ -1,6 +1,7 @@
 package epigijon.climanuvem.e2e.functional.pages;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -95,7 +96,14 @@ public class LoginPage extends BasePage {
 
     /** Waits until the authenticated Home screen is visible and returns its page object. */
     public HomePage waitForHome() {
-        wait.until(ExpectedConditions.visibilityOfElementLocated(HOME_MARKER));
+        try {
+            waitUntil(webDriver -> isVisible(HOME_MARKER) || hasLoginErrorOrValidation());
+        } catch (TimeoutException e) {
+            throw new AssertionError("Login did not reach Home before timeout. Check account credentials in ACCOUNTS_FILE.", e);
+        }
+        if (hasLoginErrorOrValidation() && !isVisible(HOME_MARKER)) {
+            throw new AssertionError("Login failed before reaching Home. Check account credentials in ACCOUNTS_FILE.");
+        }
         return new HomePage(driver);
     }
 

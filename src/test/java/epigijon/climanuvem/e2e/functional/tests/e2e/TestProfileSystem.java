@@ -1,10 +1,13 @@
 package epigijon.climanuvem.e2e.functional.tests.e2e;
 
 import epigijon.climanuvem.e2e.functional.common.BaseLoggedClass;
+import epigijon.climanuvem.e2e.functional.common.TestAccount;
 import epigijon.climanuvem.e2e.functional.pages.ProfilePage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Selenium system tests for profile configuration, derived from the hierarchical
@@ -48,10 +51,11 @@ class TestProfileSystem extends BaseLoggedClass {
                 "Guest profile must store the system language preference");
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("profileAccounts")
     @DisplayName("Authenticated session - delete account opens confirmation and can be cancelled")
-    void authenticatedDeleteAccountShowsConfirmationAndCanBeCancelled() {
-        ProfilePage profilePage = openAuthenticatedProfile()
+    void authenticatedDeleteAccountShowsConfirmationAndCanBeCancelled(TestAccount account) {
+        ProfilePage profilePage = openAuthenticatedProfile(account)
                 .openDeleteAccountDialog();
 
         Assertions.assertTrue(profilePage.isDeleteConfirmVisible(),
@@ -62,10 +66,11 @@ class TestProfileSystem extends BaseLoggedClass {
                 "Delete confirmation must close after cancelling");
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("profileAccounts")
     @DisplayName("Authenticated session - username length rules are enforced")
-    void authenticatedUsernameLengthRulesAreEnforced() {
-        ProfilePage profilePage = openAuthenticatedProfile();
+    void authenticatedUsernameLengthRulesAreEnforced(TestAccount account) {
+        ProfilePage profilePage = openAuthenticatedProfile(account);
         String validUsername20 = username20DifferentFrom(profilePage.currentUsername());
 
         profilePage.updateUsername(validUsername20)
@@ -87,10 +92,11 @@ class TestProfileSystem extends BaseLoggedClass {
                 "Twenty-one-character username must keep the save action disabled");
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("profileAccounts")
     @DisplayName("Authenticated session - theme and language preferences can be selected")
-    void authenticatedCanSelectThemeAndLanguagePreferences() {
-        ProfilePage profilePage = openAuthenticatedProfile();
+    void authenticatedCanSelectThemeAndLanguagePreferences(TestAccount account) {
+        ProfilePage profilePage = openAuthenticatedProfile(account);
 
         profilePage.chooseLightTheme();
         Assertions.assertTrue(profilePage.hasStoredTheme("light"),
@@ -125,7 +131,16 @@ class TestProfileSystem extends BaseLoggedClass {
     }
 
     private ProfilePage openAuthenticatedProfile() {
-        ProfilePage profilePage = loginAsProfileUser().clickProfile().waitForAuthenticatedProfile();
+        return openAuthenticatedProfile(profileAccount());
+    }
+
+    private ProfilePage openAuthenticatedProfile(TestAccount account) {
+        ProfilePage profilePage = onWelcomePage()
+                .clickLoginButton()
+                .login(account.getEmail(), account.getPassword())
+                .waitForHome()
+                .clickProfile()
+                .waitForAuthenticatedProfile();
         Assertions.assertAll(
                 () -> Assertions.assertTrue(profilePage.isUsernameSectionVisible(),
                         "Authenticated profile must show username configuration"),

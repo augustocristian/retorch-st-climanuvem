@@ -1,11 +1,14 @@
 package epigijon.climanuvem.e2e.functional.tests.e2e;
 
 import epigijon.climanuvem.e2e.functional.common.BaseLoggedClass;
+import epigijon.climanuvem.e2e.functional.common.TestAccount;
 import epigijon.climanuvem.e2e.functional.pages.HomePage;
 import epigijon.climanuvem.e2e.functional.pages.LoginPage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Selenium system tests for the login functionality, derived from the Base
@@ -34,33 +37,33 @@ class TestLoginSystem extends BaseLoggedClass {
         );
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("loginAccounts")
     @DisplayName("2 - Existing email with correct password reaches Home")
-    void existingEmailWithCorrectPasswordReachesHome() {
-        requireConfiguredEmailLogin();
-
+    void existingEmailWithCorrectPasswordReachesHome(TestAccount account) {
         HomePage emailHomePage = onWelcomePage()
                 .clickLoginButton()
-                .login(existingLoginEmail, existingLoginPassword)
+                .login(account.getEmail(), account.getPassword())
                 .waitForHome();
         Assertions.assertTrue(
                 emailHomePage.isWelcomeMessageVisible(),
                 "Existing email with correct password must reach the Home screen");
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("loginAccounts")
     @DisplayName("3 - Invalid email/password login attempts are rejected")
-    void invalidEmailPasswordLoginAttemptsAreRejected() {
-        requireConfiguredEmailLogin();
+    void invalidEmailPasswordLoginAttemptsAreRejected(TestAccount account) {
+        TestAccount unknown = unknownAccount();
 
         Assertions.assertAll(
-                () -> assertLoginRejected(existingLoginEmail, "",
+                () -> assertLoginRejected(account.getEmail(), "",
                         "Existing email with empty password must remain on Login and show validation or an error"),
-                () -> assertLoginRejected(unknownLoginEmail, "",
+                () -> assertLoginRejected(unknown.getEmail(), unknown.getPassword(),
                         "Unknown email with empty password must remain on Login and show validation or an error"),
                 () -> assertLoginRejected("", "",
                         "Empty credentials must remain on Login and show validation"),
-                () -> assertLoginRejected(existingLoginEmail, wrongLoginPassword,
+                () -> assertLoginRejected(account.getEmail(), unknown.getPassword(),
                         "Existing email with incorrect password must remain on Login and show an error")
         );
     }

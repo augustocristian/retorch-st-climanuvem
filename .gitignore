@@ -4,6 +4,7 @@ pom.xml.versionsBackup
 TESTS-TestSuites.xml
 *.db
 */dat/out
+src/test/resources/accounts.local.csv
 
 .idea/
 org.sonarlint.eclipse.core.prefs

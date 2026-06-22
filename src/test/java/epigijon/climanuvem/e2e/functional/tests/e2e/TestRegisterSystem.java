@@ -1,6 +1,7 @@
 package epigijon.climanuvem.e2e.functional.tests.e2e;
 
 import epigijon.climanuvem.e2e.functional.common.BaseLoggedClass;
+import epigijon.climanuvem.e2e.functional.common.TestAccount;
 import epigijon.climanuvem.e2e.functional.pages.RegisterPage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +43,7 @@ class TestRegisterSystem extends BaseLoggedClass {
     @Test
     @DisplayName("2 - Username and email validation errors are rejected")
     void usernameAndEmailValidationErrorsAreRejected() {
-        requireConfiguredEmailLogin();
+        TestAccount existingAccount = loginAccount();
 
         Assertions.assertAll(
                 () -> assertRegistrationRejected("", uniqueRegisterEmail(), VALID_PASSWORD, VALID_PASSWORD,
@@ -53,7 +54,7 @@ class TestRegisterSystem extends BaseLoggedClass {
                         "Twenty-one-character username must be rejected"),
                 () -> assertRegistrationRejected(VALID_USERNAME_20, "correo-invalido", VALID_PASSWORD, VALID_PASSWORD,
                         "Invalid email must be rejected"),
-                () -> assertRegistrationRejected(VALID_USERNAME_20, existingLoginEmail, VALID_PASSWORD, VALID_PASSWORD,
+                () -> assertRegistrationRejected(VALID_USERNAME_20, existingAccount.getEmail(), VALID_PASSWORD, VALID_PASSWORD,
                         "Email already in use must be rejected")
         );
     }
@@ -95,6 +96,6 @@ class TestRegisterSystem extends BaseLoggedClass {
     }
 
     private String uniqueRegisterEmail() {
-        return "climanuvem.test+" + System.currentTimeMillis() + "@gmail.com";
+        return "climanuvem.test+" + System.currentTimeMillis() + "@" + registerEmailDomain;
     }
 }

@@ -51,16 +51,16 @@ mvn test
 mvn test -Dtest="TestApi*"
 
 # Login system tests only (opens Chrome)
-mvn test -Dtest="TestLoginSystem" -DLOGIN_EXISTING_EMAIL="user@example.com" -DLOGIN_EXISTING_PASSWORD="secret"
+mvn test -Dtest="TestLoginSystem"
 
 # Login system tests headless (for CI or no monitor)
-mvn test -Dtest="TestLoginSystem" -DLOGIN_EXISTING_EMAIL="user@example.com" -DLOGIN_EXISTING_PASSWORD="secret" -DCI=true
+mvn test -Dtest="TestLoginSystem" -DCI=true
 
 # Account-creation system tests
-mvn test -Dtest="TestRegisterSystem" -DLOGIN_EXISTING_EMAIL="user@example.com" -DCI=true
+mvn test -Dtest="TestRegisterSystem" -DCI=true
 
 # Profile-configuration system tests
-mvn test -Dtest="TestProfileSystem" -DPROFILE_LOGIN_EMAIL="verified-user@example.com" -DPROFILE_LOGIN_PASSWORD="secret" -DCI=true
+mvn test -Dtest="TestProfileSystem" -DCI=true
 
 # Single class
 mvn test -Dtest=TestApiCancel
@@ -103,30 +103,49 @@ and file validation cases.
 
 ## Configuration
 
-Set login credentials for the Selenium login tests in one of these places, in priority order:
+Selenium account data is loaded from a CSV file instead of individual email/password properties.
 
-1. Maven system properties, for example `-DLOGIN_EXISTING_EMAIL="user@example.com"`.
-2. Environment variables with the same names.
-3. `src/test/resources/test.properties`.
+The account file path is resolved in this priority order:
 
-`LOGIN_EXISTING_EMAIL` and `LOGIN_EXISTING_PASSWORD` are required for the email-login success case. The negative-test credentials have safe defaults.
+1. Maven system property: `-DACCOUNTS_FILE=path/to/accounts.csv`.
+2. Environment variable: `ACCOUNTS_FILE`.
+3. `ACCOUNTS_FILE` in `src/test/resources/test.properties`.
+
+Create your local account file from the template:
+
+```bash
+cp src/test/resources/accounts.template.csv src/test/resources/accounts.local.csv
+```
+
+`accounts.local.csv` is ignored by Git and should contain the real accounts used by local or CI runs:
+
+```csv
+role,email,password,verified,description
+login_user,user@example.com,secret,true,Existing account for login tests
+profile_user,verified-user@example.com,secret,true,Verified account for profile tests
+unknown_user,missing@example.test,wrong-password,false,Non-existing account for negative login tests
+```
+
+Roles:
+
+- `login_user`: existing account used by `TestLoginSystem` and by the "email already in use" registration case.
+- `profile_user`: verified account used by authenticated profile tests. It may be the same account as `login_user`.
+- `unknown_user`: account expected not to exist, used for negative login attempts.
+
+`TestLoginSystem` and `TestProfileSystem` are parameterized: if the CSV contains several `login_user` or `profile_user` rows, the relevant tests run once per row.
 
 | Property | Default | Description |
 |---|---|---|
 | `SUT_URL` | `http://localhost:8000` | Backend base URL |
 | `FRONTEND_URL` | `http://localhost:5173` | Frontend base URL (Selenium tests) |
 | `TEST_TOKEN` | `test-token-climanuvem` | Auth token injected by API tests |
-| `LOGIN_EXISTING_EMAIL` | _(required for email success cases)_ | Existing email account used by login system tests |
-| `LOGIN_EXISTING_PASSWORD` | _(required for email success cases)_ | Correct password for `LOGIN_EXISTING_EMAIL` |
-| `LOGIN_UNKNOWN_EMAIL` | `missing-user@example.com` | Unknown email used by negative login tests |
-| `LOGIN_WRONG_PASSWORD` | `wrong-password` | Incorrect password used by negative login tests |
-| `PROFILE_LOGIN_EMAIL` | `LOGIN_EXISTING_EMAIL` | Verified account used by authenticated profile tests |
-| `PROFILE_LOGIN_PASSWORD` | `LOGIN_EXISTING_PASSWORD` | Password for `PROFILE_LOGIN_EMAIL` |
+| `ACCOUNTS_FILE` | `src/test/resources/accounts.local.csv` | CSV file with Selenium test accounts |
+| `REGISTER_EMAIL_DOMAIN` | `gmail.com` | Domain used for unique registration-test emails |
 | `FIREBASE_WEB_API_KEY` | _(unset)_ | Optional Firebase Web API key used to delete the account created by `TestRegisterSystem` |
 | `TJOB_NAME` | `local` | Separates build outputs in CI |
 | `CI` | _(unset)_ | Set to `true` for headless Chrome |
 
-`TestRegisterSystem` creates the successful-registration account with a unique email address and expects the email-verification dialog shown by the app. If `FIREBASE_WEB_API_KEY` is configured, the test deletes that Firebase Auth account at the end; otherwise the unique address prevents future test collisions.
+`TestRegisterSystem` creates the successful-registration account with a unique email address using `REGISTER_EMAIL_DOMAIN` and expects the email-verification dialog shown by the app. If `FIREBASE_WEB_API_KEY` is configured, the test deletes that Firebase Auth account at the end; otherwise the unique address prevents future test collisions.
 
 ---
 
@@ -136,7 +155,9 @@ Set login credentials for the Selenium login tests in one of these places, in pr
 src/test/java/epigijon/climanuvem/e2e/functional/
 ├── common/
 │   ├── BaseApiClass.java       HTTP helpers, multipart upload, JSON fixtures
-│   └── BaseLoggedClass.java    Selenium browser lifecycle and login configuration
+│   ├── BaseLoggedClass.java    Selenium browser lifecycle and login configuration
+│   ├── TestAccount.java        Account row used by parameterized Selenium tests
+│   └── TestAccounts.java       CSV loader and role lookup for Selenium accounts
 ├── pages/                      Page Object Model — one class per screen
 │   ├── BasePage.java           Shared wait, click, fill, isPresent helpers
 │   ├── WelcomePage.java
@@ -157,6 +178,16 @@ src/test/java/epigijon/climanuvem/e2e/functional/
         ├── TestLoginSystem.java
         ├── TestRegisterSystem.java
         └── TestProfileSystem.java
+```
+
+Selenium account data lives under `src/test/resources/`:
+
+```
+src/test/resources/
+├── test.properties             URLs, TEST_TOKEN, ACCOUNTS_FILE and non-sensitive defaults
+├── accounts.template.csv       Versioned example for Selenium account data
+├── accounts.local.csv          Local/CI account data, ignored by Git
+└── log4j2.xml
 ```
 
 Page object navigation is typed — every action returns the next screen:

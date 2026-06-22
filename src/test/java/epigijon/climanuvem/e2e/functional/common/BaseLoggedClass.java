@@ -22,7 +22,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Properties;
+import java.util.stream.Stream;
 
 /**
  * Base class for the ClimaNuvem browser system tests.
@@ -39,8 +41,8 @@ import java.util.Properties;
  * </ul>
  * <p>
  * Set {@code -DCI=true} (or the {@code CI} env var) for headless Chrome in CI.
- * Override browser/login values via {@code -D...} system properties, matching
- * environment variables, or {@code src/test/resources/test.properties}.
+ * Override browser and accounts-file values via {@code -D...} system
+ * properties, matching environment variables, or {@code test.properties}.
  */
 @SuppressWarnings("java:S5786") // must be public — subclasses live in a different package
 public class BaseLoggedClass {
@@ -48,13 +50,10 @@ public class BaseLoggedClass {
     protected static final Logger log = LoggerFactory.getLogger(BaseLoggedClass.class);
 
     protected static String frontendUrl;
-    protected static String existingLoginEmail;
-    protected static String existingLoginPassword;
-    protected static String unknownLoginEmail;
-    protected static String wrongLoginPassword;
-    protected static String profileLoginEmail;
-    protected static String profileLoginPassword;
+    protected static String accountsFile;
+    protected static TestAccounts testAccounts;
     protected static String firebaseWebApiKey;
+    protected static String registerEmailDomain;
 
     protected WebDriver driver;
 
@@ -64,21 +63,13 @@ public class BaseLoggedClass {
         props.load(Files.newInputStream(Paths.get("src/test/resources/test.properties")));
 
         frontendUrl = configuredValue(props, "FRONTEND_URL", "http://localhost:5173");
-        existingLoginEmail = configuredValue(props, "LOGIN_EXISTING_EMAIL", "");
-        existingLoginPassword = configuredValue(props, "LOGIN_EXISTING_PASSWORD", "");
-        unknownLoginEmail = configuredValue(props, "LOGIN_UNKNOWN_EMAIL", "missing-user@example.com");
-        wrongLoginPassword = configuredValue(props, "LOGIN_WRONG_PASSWORD", "wrong-password");
-        profileLoginEmail = configuredValue(props, "PROFILE_LOGIN_EMAIL", "");
-        profileLoginPassword = configuredValue(props, "PROFILE_LOGIN_PASSWORD", "");
-        if (profileLoginEmail == null || profileLoginEmail.trim().isEmpty()) {
-            profileLoginEmail = existingLoginEmail;
-        }
-        if (profileLoginPassword == null || profileLoginPassword.trim().isEmpty()) {
-            profileLoginPassword = existingLoginPassword;
-        }
+        accountsFile = configuredValue(props, "ACCOUNTS_FILE", "src/test/resources/accounts.local.csv");
+        testAccounts = TestAccounts.load(accountsFile);
         firebaseWebApiKey = configuredValue(props, "FIREBASE_WEB_API_KEY", "");
+        registerEmailDomain = configuredValue(props, "REGISTER_EMAIL_DOMAIN", "example.test");
 
         log.info("Frontend URL: {}", frontendUrl);
+        log.info("System-test accounts file: {}", accountsFile);
     }
 
     @BeforeEach
@@ -122,28 +113,40 @@ public class BaseLoggedClass {
     }
 
     protected HomePage loginAsProfileUser() {
-        requireConfiguredProfileLogin();
+        TestAccount account = profileAccount();
 
         LoginPage loginPage = onWelcomePage()
                 .clickLoginButton()
-                .login(profileLoginEmail, profileLoginPassword);
+                .login(account.getEmail(), account.getPassword());
         return loginPage.waitForHome();
     }
 
-    protected void requireConfiguredEmailLogin() {
-        if (existingLoginEmail == null || existingLoginEmail.trim().isEmpty()
-                || existingLoginPassword == null || existingLoginPassword.trim().isEmpty()) {
-            throw new AssertionError("Configure LOGIN_EXISTING_EMAIL and LOGIN_EXISTING_PASSWORD "
-                    + "as system properties, environment variables, or test.properties values.");
+    protected static Stream<TestAccount> loginAccounts() {
+        List<TestAccount> accounts = testAccounts.byRole(TestAccounts.ROLE_LOGIN_USER);
+        if (accounts.isEmpty()) {
+            throw new AssertionError("Configure at least one login_user in " + accountsFile + ".");
         }
+        return accounts.stream();
     }
 
-    protected void requireConfiguredProfileLogin() {
-        if (profileLoginEmail == null || profileLoginEmail.trim().isEmpty()
-                || profileLoginPassword == null || profileLoginPassword.trim().isEmpty()) {
-            throw new AssertionError("Configure PROFILE_LOGIN_EMAIL and PROFILE_LOGIN_PASSWORD "
-                    + "or fallback LOGIN_EXISTING_EMAIL and LOGIN_EXISTING_PASSWORD.");
+    protected static Stream<TestAccount> profileAccounts() {
+        List<TestAccount> accounts = testAccounts.byRole(TestAccounts.ROLE_PROFILE_USER);
+        if (accounts.isEmpty()) {
+            throw new AssertionError("Configure at least one profile_user in " + accountsFile + ".");
         }
+        return accounts.stream();
+    }
+
+    protected static TestAccount loginAccount() {
+        return testAccounts.requiredSingle(TestAccounts.ROLE_LOGIN_USER);
+    }
+
+    protected static TestAccount profileAccount() {
+        return testAccounts.requiredSingle(TestAccounts.ROLE_PROFILE_USER);
+    }
+
+    protected static TestAccount unknownAccount() {
+        return testAccounts.requiredSingle(TestAccounts.ROLE_UNKNOWN_USER);
     }
 
     protected void deleteFirebaseAccountIfConfigured(String email, String password) {
