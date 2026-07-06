@@ -28,10 +28,13 @@ $OLLAMA_COMPOSE_FILE = "docker-compose.ollama-test.yml"
 $PROJECT_NAME  = "climanuvem-test"
 $MAX_WAIT_SECS = 180
 $POLL_INTERVAL = 5
-$OLLAMA_MODEL  = "gemma4:e4b"
+$OLLAMA_MODEL  = if ($env:OLLAMA_MODEL) { $env:OLLAMA_MODEL } else { "gemma4:e4b" }
+$POSTGRES_VOLUME = "${PROJECT_NAME}_postgres_test_data"
+$env:OLLAMA_MODEL = $OLLAMA_MODEL
+$env:BACKEND_PORT = "$Port"
 
 $composeFiles = @("-f", $COMPOSE_FILE)
-if ($WithOllama -or $Down) {
+if ($WithOllama) {
     $composeFiles += @("-f", $OLLAMA_COMPOSE_FILE)
 }
 
@@ -60,8 +63,15 @@ Write-OK "Prerequisites satisfied."
 # ── Teardown mode ──────────────────────────────────────────────────────────────
 if ($Down) {
     Write-Step "Tearing down project '$PROJECT_NAME'..."
-    docker compose @composeFiles -p $PROJECT_NAME down --volumes
+    docker compose @composeFiles -p $PROJECT_NAME down
     if ($LASTEXITCODE -ne 0) { Write-Fail "docker compose down failed." }
+    Write-Step "Removing PostgreSQL test volume '$POSTGRES_VOLUME'..."
+    docker volume rm $POSTGRES_VOLUME *> $null
+    if ($LASTEXITCODE -eq 0) {
+        Write-OK "PostgreSQL test volume removed."
+    } else {
+        Write-OK "PostgreSQL test volume was not present."
+    }
     Write-OK "Teardown complete."
     exit 0
 }
@@ -115,7 +125,8 @@ while ($elapsed -lt $MAX_WAIT_SECS) {
 if (-not $ready) {
     Write-Host "[!] Backend did not become healthy." -ForegroundColor Red
     docker compose @composeFiles -p $PROJECT_NAME logs --tail 50
-    docker compose @composeFiles -p $PROJECT_NAME down --volumes
+    docker compose @composeFiles -p $PROJECT_NAME down
+    docker volume rm $POSTGRES_VOLUME *> $null
     exit 1
 }
 Write-OK "Backend is ready at $backendUrl"
@@ -144,6 +155,7 @@ if ($ready) {
 } else {
     Write-Host "[!] Frontend did not become healthy." -ForegroundColor Red
     docker compose @composeFiles -p $PROJECT_NAME logs --tail 50
-    docker compose @composeFiles -p $PROJECT_NAME down --volumes
+    docker compose @composeFiles -p $PROJECT_NAME down
+    docker volume rm $POSTGRES_VOLUME *> $null
     exit 1
 }

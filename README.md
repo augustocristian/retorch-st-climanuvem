@@ -87,10 +87,10 @@ mvn test -Dtest=TestApiImageAnalysisSystem -DREAL_OLLAMA_TESTS=true
 ```
 
 `--with-ollama` / `-WithOllama` enables the analysis worker, starts an Ollama
-container, and pulls `gemma4:e4b`. The first run can take longer while the model
-is downloaded. These tests validate the real upload and processing flow: image
-upload, history polling, cloud detection, explainability boxes, no-cloud images,
-and file validation cases.
+container, and pulls `${OLLAMA_MODEL:-gemma4:e4b}`. The first run can take longer
+while the model is downloaded. These tests validate the real upload and
+processing flow: image upload, history polling, cloud detection, explainability
+boxes, no-cloud images, and file validation cases.
 
 ### 3 — Tear down
 
@@ -98,6 +98,9 @@ and file validation cases.
 ./deploy-local.sh --down    # Linux / macOS
 ./deploy-local.ps1 -Down    # Windows PowerShell
 ```
+
+Teardown removes the PostgreSQL test volume so the next run starts with a clean
+database. The Ollama volume is preserved, so downloaded models are not removed.
 
 ---
 

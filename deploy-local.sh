@@ -19,7 +19,9 @@ POLL_INTERVAL=5
 PORT=8000
 DOWN=false
 WITH_OLLAMA=false
-OLLAMA_MODEL="gemma4:e4b"
+OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
+POSTGRES_VOLUME="${PROJECT_NAME}_postgres_test_data"
+export OLLAMA_MODEL
 
 step() { echo "[>] $*"; }
 ok()   { echo "[+] $*"; }
@@ -36,9 +38,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 COMPOSE_ARGS=(-f "$COMPOSE_FILE")
-if $WITH_OLLAMA || $DOWN; then
+if $WITH_OLLAMA; then
     COMPOSE_ARGS+=(-f "$OLLAMA_COMPOSE_FILE")
 fi
+export BACKEND_PORT="$PORT"
 
 # ── Prerequisites ──────────────────────────────────────────────────────────────
 step "Checking prerequisites..."
@@ -50,7 +53,9 @@ ok "Prerequisites satisfied."
 # ── Teardown mode ──────────────────────────────────────────────────────────────
 if $DOWN; then
     step "Tearing down project '$PROJECT_NAME'..."
-    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down --volumes
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down
+    step "Removing PostgreSQL test volume '$POSTGRES_VOLUME'..."
+    docker volume rm "$POSTGRES_VOLUME" >/dev/null 2>&1 || true
     ok "Teardown complete."
     exit 0
 fi
@@ -100,7 +105,8 @@ done
 if ! $ready; then
     echo "[!] Backend did not become healthy within ${MAX_WAIT_SECS}s." >&2
     docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" logs --tail 50
-    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down --volumes
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down
+    docker volume rm "$POSTGRES_VOLUME" >/dev/null 2>&1 || true
     exit 1
 fi
 ok "Backend is ready at $BACKEND_URL"
@@ -129,6 +135,7 @@ if $ready; then
 else
     echo "[!] Frontend did not become healthy within ${MAX_WAIT_SECS}s." >&2
     docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" logs --tail 50
-    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down --volumes
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down
+    docker volume rm "$POSTGRES_VOLUME" >/dev/null 2>&1 || true
     exit 1
 fi

@@ -13,16 +13,10 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
  */
 public class HomePage extends BasePage {
 
-    private static final By WELCOME_MESSAGE  = byPartialText("Bienvenido");
-    private static final By ANALYZE_CARD     = byPartialText("Analizar Imagen");
-    private static final By HISTORY_CARD     = byPartialText("Historial");
-    private static final By LOGOUT_CARD      = byPartialText("Cerrar Sesión");
-    private static final By PROFILE_CARD     = By.xpath(
-            "//*[@role='button' or self::button or @tabindex]"
-                    + "[.//*[contains(normalize-space(.),'Bienvenido')]"
-                    + " or contains(normalize-space(.),'Bienvenido')"
-                    + " or .//*[contains(normalize-space(.),'Welcome')]"
-                    + " or contains(normalize-space(.),'Welcome')]");
+    private static final By WELCOME_MESSAGE = byPartialText("Bienvenido");
+    private static final By ANALYZE_CARD = byPartialText("Analizar Imagen");
+    private static final By HISTORY_CARD = byPartialText("Historial");
+    private static final By LOGOUT_CARD = byPartialText("Cerrar Sesión");
 
     public HomePage(WebDriver driver) {
         super(driver);
@@ -32,10 +26,21 @@ public class HomePage extends BasePage {
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
-    public boolean isWelcomeMessageVisible() { return isPresent(WELCOME_MESSAGE); }
-    public boolean isAnalyzeCardVisible()    { return isPresent(ANALYZE_CARD);    }
-    public boolean isHistoryCardVisible()    { return isPresent(HISTORY_CARD);    }
-    public boolean isLogoutCardVisible()     { return isPresent(LOGOUT_CARD);     }
+    public boolean isWelcomeMessageVisible() {
+        return isPresent(WELCOME_MESSAGE);
+    }
+
+    public boolean isAnalyzeCardVisible() {
+        return isPresent(ANALYZE_CARD);
+    }
+
+    public boolean isHistoryCardVisible() {
+        return isPresent(HISTORY_CARD);
+    }
+
+    public boolean isLogoutCardVisible() {
+        return isPresent(LOGOUT_CARD);
+    }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -50,7 +55,10 @@ public class HomePage extends BasePage {
         return openProfileRouteDirectly();
     }
 
-    /** Opens Profile through the router URL when the welcome card click is swallowed by React Native Web. */
+    /**
+     * Opens Profile through the router URL when the welcome card click is swallowed
+     * by React Native Web.
+     */
     public ProfilePage openProfileRouteDirectly() {
         String baseUrl = driver.getCurrentUrl().split("#")[0].replaceAll("/home/?$", "");
         driver.get(baseUrl + "/profile");

@@ -16,6 +16,7 @@ services:
       - FIREBASE_KEY_PATH=
       - DISABLE_WORKER=false
       - OLLAMA_URL=http://ollama:11434/api/generate
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma4:e4b}
     depends_on:
       db:
         condition: service_healthy

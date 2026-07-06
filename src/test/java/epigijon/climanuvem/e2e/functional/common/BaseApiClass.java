@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
@@ -40,8 +39,10 @@ import java.util.Properties;
  * Base class for the ClimaNuvem API test suite. Handles HTTP plumbing, Firebase
  * auth-token injection, multipart image upload, and common fixture creation.
  * <p>
- * The SUT must be started in TEST_MODE=true so that requests bearing {@code testToken}
- * bypass Firebase verification. Use {@code deploy-local.sh} / {@code deploy-local.ps1}
+ * The SUT must be started in TEST_MODE=true so that requests bearing
+ * {@code testToken}
+ * bypass Firebase verification. Use {@code deploy-local.sh} /
+ * {@code deploy-local.ps1}
  * to bring up the test environment before running the suite.
  */
 public class BaseApiClass {
@@ -111,8 +112,13 @@ public class BaseApiClass {
 
     // ── URL builders ─────────────────────────────────────────────────────────
 
-    protected String analysisUrl(String path) { return sutUrl + "/analysis" + path; }
-    protected String rootUrl(String path)     { return sutUrl + path; }
+    protected String analysisUrl(String path) {
+        return sutUrl + "/analysis" + path;
+    }
+
+    protected String rootUrl(String path) {
+        return sutUrl + path;
+    }
 
     // ── Unauthenticated HTTP ─────────────────────────────────────────────────
 
@@ -313,7 +319,8 @@ public class BaseApiClass {
     }
 
     /**
-     * Creates a minimal 10x10 JPEG in memory — small enough to be fast, valid enough for the
+     * Creates a minimal 10x10 JPEG in memory — small enough to be fast, valid
+     * enough for the
      * upload endpoint to accept (it only needs a readable byte stream).
      */
     protected static byte[] createTestImage() throws IOException {
@@ -375,7 +382,8 @@ public class BaseApiClass {
     }
 
     /**
-     * Uploads a test image to {@code POST /analysis/upload} and returns the assigned analysis ID.
+     * Uploads a test image to {@code POST /analysis/upload} and returns the
+     * assigned analysis ID.
      */
     protected int createAnalysis(String location) throws IOException {
         byte[] img = createTestImage();
@@ -384,7 +392,8 @@ public class BaseApiClass {
     }
 
     /**
-     * Deletes all analysis records for the test user via {@code DELETE /analysis/user-data}.
+     * Deletes all analysis records for the test user via
+     * {@code DELETE /analysis/user-data}.
      * Call this in {@code @BeforeAll} for tests that require an empty history.
      */
     protected void deleteAllUserData() throws IOException {
