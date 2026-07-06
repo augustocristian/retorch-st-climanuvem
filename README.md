@@ -99,8 +99,8 @@ boxes, no-cloud images, and file validation cases.
 ./deploy-local.ps1 -Down    # Windows PowerShell
 ```
 
-Teardown removes the PostgreSQL test volume so the next run starts with a clean
-database. The Ollama volume is preserved, so downloaded models are not removed.
+Teardown removes the test containers, network, PostgreSQL volume, and Ollama
+volume so the next run starts from a fully clean local environment.
 
 ---
 

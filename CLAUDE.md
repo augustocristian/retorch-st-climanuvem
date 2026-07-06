@@ -44,6 +44,8 @@ To stop:
 ./deploy-local.sh --down
 ./deploy-local.ps1 -Down
 ```
+Teardown removes the test containers, network, PostgreSQL volume, and Ollama
+volume. Docker images and build cache are intentionally preserved.
 
 ### Architecture
 

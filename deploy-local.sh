@@ -5,7 +5,7 @@
 #   ./deploy-local.sh              — clone SUT (if needed) and start on default ports
 #   ./deploy-local.sh --port 9000  — use a custom backend port (frontend stays at 5173)
 #   ./deploy-local.sh --with-ollama — start worker + Ollama for real image-analysis tests
-#   ./deploy-local.sh --down       — tear down the running deployment
+#   ./deploy-local.sh --down       — tear down containers, network, and test volumes
 
 set -euo pipefail
 
@@ -21,6 +21,7 @@ DOWN=false
 WITH_OLLAMA=false
 OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
 POSTGRES_VOLUME="${PROJECT_NAME}_postgres_test_data"
+OLLAMA_VOLUME="${PROJECT_NAME}_ollama_test_data"
 export OLLAMA_MODEL
 
 step() { echo "[>] $*"; }
@@ -41,6 +42,7 @@ COMPOSE_ARGS=(-f "$COMPOSE_FILE")
 if $WITH_OLLAMA; then
     COMPOSE_ARGS+=(-f "$OLLAMA_COMPOSE_FILE")
 fi
+TEARDOWN_COMPOSE_ARGS=(-f "$COMPOSE_FILE" -f "$OLLAMA_COMPOSE_FILE")
 export BACKEND_PORT="$PORT"
 
 # ── Prerequisites ──────────────────────────────────────────────────────────────
@@ -53,9 +55,15 @@ ok "Prerequisites satisfied."
 # ── Teardown mode ──────────────────────────────────────────────────────────────
 if $DOWN; then
     step "Tearing down project '$PROJECT_NAME'..."
-    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down
-    step "Removing PostgreSQL test volume '$POSTGRES_VOLUME'..."
-    docker volume rm "$POSTGRES_VOLUME" >/dev/null 2>&1 || true
+    docker compose "${TEARDOWN_COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down --volumes --remove-orphans
+    for volume in "$POSTGRES_VOLUME" "$OLLAMA_VOLUME"; do
+        step "Ensuring test volume '$volume' is removed..."
+        if docker volume rm "$volume" >/dev/null 2>&1; then
+            ok "Removed test volume '$volume'."
+        else
+            ok "Test volume '$volume' was not present."
+        fi
+    done
     ok "Teardown complete."
     exit 0
 fi

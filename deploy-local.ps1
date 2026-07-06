@@ -2,7 +2,7 @@
 .SYNOPSIS
     Deploys or tears down the ClimaNuvem SUT locally for E2E testing.
 .PARAMETER Down
-    Tear down the running deployment instead of starting it.
+    Tear down containers, network, and test volumes instead of starting the deployment.
 .PARAMETER Port
     Host port for the backend (default: 8000). Frontend is always on 5173.
 .PARAMETER WithOllama
@@ -30,6 +30,7 @@ $MAX_WAIT_SECS = 180
 $POLL_INTERVAL = 5
 $OLLAMA_MODEL  = if ($env:OLLAMA_MODEL) { $env:OLLAMA_MODEL } else { "gemma4:e4b" }
 $POSTGRES_VOLUME = "${PROJECT_NAME}_postgres_test_data"
+$OLLAMA_VOLUME = "${PROJECT_NAME}_ollama_test_data"
 $env:OLLAMA_MODEL = $OLLAMA_MODEL
 $env:BACKEND_PORT = "$Port"
 
@@ -37,6 +38,7 @@ $composeFiles = @("-f", $COMPOSE_FILE)
 if ($WithOllama) {
     $composeFiles += @("-f", $OLLAMA_COMPOSE_FILE)
 }
+$teardownComposeFiles = @("-f", $COMPOSE_FILE, "-f", $OLLAMA_COMPOSE_FILE)
 
 function Write-Step([string]$msg) { Write-Host "[>] $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "[+] $msg" -ForegroundColor Green }
@@ -63,14 +65,16 @@ Write-OK "Prerequisites satisfied."
 # ── Teardown mode ──────────────────────────────────────────────────────────────
 if ($Down) {
     Write-Step "Tearing down project '$PROJECT_NAME'..."
-    docker compose @composeFiles -p $PROJECT_NAME down
+    docker compose @teardownComposeFiles -p $PROJECT_NAME down --volumes --remove-orphans
     if ($LASTEXITCODE -ne 0) { Write-Fail "docker compose down failed." }
-    Write-Step "Removing PostgreSQL test volume '$POSTGRES_VOLUME'..."
-    docker volume rm $POSTGRES_VOLUME *> $null
-    if ($LASTEXITCODE -eq 0) {
-        Write-OK "PostgreSQL test volume removed."
-    } else {
-        Write-OK "PostgreSQL test volume was not present."
+    foreach ($volume in @($POSTGRES_VOLUME, $OLLAMA_VOLUME)) {
+        Write-Step "Ensuring test volume '$volume' is removed..."
+        docker volume rm $volume *> $null
+        if ($LASTEXITCODE -eq 0) {
+            Write-OK "Removed test volume '$volume'."
+        } else {
+            Write-OK "Test volume '$volume' was not present."
+        }
     }
     Write-OK "Teardown complete."
     exit 0
