@@ -37,19 +37,20 @@ public class LoginPage extends BasePage {
                     + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'credencial')"
                     + " or contains(translate(normalize-space(.),"
                     + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
-                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'contraseña')"
-                    + " or contains(translate(normalize-space(.),"
-                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
-                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'correo')"
-                    + " or contains(translate(normalize-space(.),"
-                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
                     + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'obligatorio')"
                     + " or contains(translate(normalize-space(.),"
                     + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
                     + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'requerid')]");
+    private static final By FEEDBACK_ACCEPT  = By.xpath(
+            "//*[@role='button' or self::button or @tabindex]"
+                    + "[contains(normalize-space(.),'Aceptar')"
+                    + " or contains(normalize-space(.),'Accept')"
+                    + " or contains(normalize-space(.),'OK')]");
+    private final String frontendUrl;
 
-    public LoginPage(WebDriver driver) {
+    public LoginPage(WebDriver driver, String frontendUrl) {
         super(driver);
+        this.frontendUrl = frontendUrl;
         wait.until(ExpectedConditions.visibilityOfElementLocated(EMAIL_INPUT));
     }
 
@@ -89,6 +90,7 @@ public class LoginPage extends BasePage {
 
     /** Fills both fields and submits the email/password login form. */
     public LoginPage login(String email, String password) {
+        waitForLoginFormReady();
         enterEmail(email);
         enterPassword(password);
         return submitLogin();
@@ -104,13 +106,29 @@ public class LoginPage extends BasePage {
         if (hasLoginErrorOrValidation() && !isVisible(HOME_MARKER)) {
             throw new AssertionError("Login failed before reaching Home. Check account credentials in ACCOUNTS_FILE.");
         }
-        return new HomePage(driver);
+        return new HomePage(driver, frontendUrl);
     }
 
     /** Waits until the login attempt is rejected by UI validation or an error message. */
     public LoginPage waitForLoginFailure() {
         waitUntil(webDriver -> hasLoginErrorOrValidation() && isEmailInputPresent());
         return this;
+    }
+
+    public LoginPage closeLoginFeedbackIfPresent() {
+        List<WebElement> buttons = driver.findElements(FEEDBACK_ACCEPT);
+        for (int i = buttons.size() - 1; i >= 0; i--) {
+            WebElement button = buttons.get(i);
+            if (button.isDisplayed()) {
+                clickElement(button);
+                break;
+            }
+        }
+        return this;
+    }
+
+    private void waitForLoginFormReady() {
+        waitUntil(webDriver -> inputIsEditable(EMAIL_INPUT) && inputIsEditable(PASSWORD_INPUT));
     }
 
     /**
@@ -128,14 +146,7 @@ public class LoginPage extends BasePage {
     /** Clicks "¿No tienes cuenta? Regístrate" and waits for the Register form. */
     public RegisterPage clickRegisterLink() {
         click(REGISTER_LINK);
-        return new RegisterPage(driver);
-    }
-
-    private boolean hasInvalidRequiredInput() {
-        Object invalidCount = runScript(
-                "return Array.from(document.querySelectorAll('input'))"
-                        + ".filter(function(input) { return input.required && !input.checkValidity(); }).length;");
-        return invalidCount instanceof Number && ((Number) invalidCount).intValue() > 0;
+        return new RegisterPage(driver, frontendUrl);
     }
 
     private boolean containsIdentityProviderMarker() {
@@ -143,6 +154,17 @@ public class LoginPage extends BasePage {
         String body = driver.findElement(By.tagName("body")).getText().toLowerCase();
         return url.contains("google") || url.contains("firebase") || url.contains("identitytoolkit")
                 || body.contains("google") || body.contains("firebase");
+    }
+
+    private boolean inputIsEditable(By locator) {
+        List<WebElement> inputs = driver.findElements(locator);
+        for (WebElement input : inputs) {
+            if (input.isDisplayed() && input.isEnabled()) {
+                Object readOnly = runScript("return arguments[0].readOnly === true;", input);
+                return !(readOnly instanceof Boolean && ((Boolean) readOnly));
+            }
+        }
+        return false;
     }
 
     private WebElement lastVisibleSubmitButton() {

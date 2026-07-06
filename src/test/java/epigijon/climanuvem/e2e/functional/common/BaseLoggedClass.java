@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -64,7 +63,13 @@ public class BaseLoggedClass {
 
         frontendUrl = configuredValue(props, "FRONTEND_URL", "http://localhost:5173");
         accountsFile = configuredValue(props, "ACCOUNTS_FILE", "src/test/resources/accounts.local.csv");
-        testAccounts = TestAccounts.load(accountsFile);
+        try {
+            testAccounts = TestAccounts.load(accountsFile);
+        } catch (IOException | RuntimeException e) {
+            log.warn("Could not load system-test accounts from {}. Tests that require accounts will fail only when "
+                    + "they request one.", accountsFile, e);
+            testAccounts = TestAccounts.empty();
+        }
         firebaseWebApiKey = configuredValue(props, "FIREBASE_WEB_API_KEY", "");
         registerEmailDomain = configuredValue(props, "REGISTER_EMAIL_DOMAIN", "example.test");
 
@@ -99,7 +104,7 @@ public class BaseLoggedClass {
      */
     protected WelcomePage onWelcomePage() {
         driver.get(frontendUrl);
-        return new WelcomePage(driver);
+        return new WelcomePage(driver, frontendUrl);
     }
 
     /**
@@ -156,14 +161,17 @@ public class BaseLoggedClass {
         }
 
         try {
-            String signInResponse = postFirebaseAuth("accounts:signInWithPassword",
-                    "{\"email\":\"" + json(email) + "\","
-                            + "\"password\":\"" + json(password) + "\","
-                            + "\"returnSecureToken\":true}");
+            JsonObject signInRequest = new JsonObject();
+            signInRequest.addProperty("email", email);
+            signInRequest.addProperty("password", password);
+            signInRequest.addProperty("returnSecureToken", true);
+            String signInResponse = postFirebaseAuth("accounts:signInWithPassword", signInRequest.toString());
             JsonObject signInJson = JsonParser.parseString(signInResponse).getAsJsonObject();
             String idToken = signInJson.get("idToken").getAsString();
 
-            postFirebaseAuth("accounts:delete", "{\"idToken\":\"" + json(idToken) + "\"}");
+            JsonObject deleteRequest = new JsonObject();
+            deleteRequest.addProperty("idToken", idToken);
+            postFirebaseAuth("accounts:delete", deleteRequest.toString());
             log.info("Deleted Firebase account created during test: {}", email);
         } catch (Exception e) {
             log.warn("Could not delete Firebase account created during test: {}", email, e);
@@ -194,29 +202,14 @@ public class BaseLoggedClass {
         }
 
         int status = connection.getResponseCode();
-        InputStream responseStream = status >= 200 && status < 300
+        java.io.InputStream responseStream = status >= 200 && status < 300
                 ? connection.getInputStream()
                 : connection.getErrorStream();
-        String response = new String(readAllBytes(responseStream), StandardCharsets.UTF_8);
+        String response = new String(responseStream.readAllBytes(), StandardCharsets.UTF_8);
         if (status < 200 || status >= 300) {
             throw new IOException("Firebase Auth request failed with HTTP " + status + ": " + response);
         }
         return response;
-    }
-
-    private static byte[] readAllBytes(InputStream input) throws IOException {
-        byte[] buffer = new byte[4096];
-        int read;
-        try (java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-            return output.toByteArray();
-        }
-    }
-
-    private static String json(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private boolean isHeadless() {

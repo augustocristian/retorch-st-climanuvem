@@ -16,6 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Properties;
 
 /**
  * System tests for the real image-analysis flow.
@@ -29,7 +32,7 @@ import java.io.IOException;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class TestApiImageAnalysisSystem extends BaseApiClass {
 
-    private static final long ANALYSIS_TIMEOUT_MS = 360000;
+    private static final long ANALYSIS_TIMEOUT_MS = configuredLong("ANALYSIS_TIMEOUT_MS", "360000");
     private static final long ANALYSIS_POLL_MS = 5000;
 
     @BeforeAll
@@ -88,8 +91,8 @@ class TestApiImageAnalysisSystem extends BaseApiClass {
         int status = uploadImageStatus(analysisUrl("/upload"), createEmptyImageBytes(), "empty.jpg",
                 ContentType.IMAGE_JPEG, "Empty Image City", false);
 
-        Assertions.assertTrue(status >= 400,
-                "Zero-byte images must be rejected by the system design");
+        Assertions.assertEquals(400, status,
+                "Zero-byte images must be rejected with HTTP 400");
     }
 
     @AccessMode(resID = "analysis", concurrency = 1, sharing = false, accessMode = "READWRITE")
@@ -168,7 +171,10 @@ class TestApiImageAnalysisSystem extends BaseApiClass {
 
         Assertions.assertNotNull(analysis,
                 "Analysis " + analysisId + " must appear in history before timeout");
-        Assertions.assertEquals("completed", analysis.get("status").getAsString(),
+        String status = analysis.get("status").getAsString();
+        Assertions.assertNotEquals("cancelled", status,
+                "Analysis " + analysisId + " unexpectedly cancelled - check the Ollama worker logs");
+        Assertions.assertEquals("completed", status,
                 "Analysis " + analysisId + " must complete successfully");
         return analysis;
     }
@@ -214,5 +220,24 @@ class TestApiImageAnalysisSystem extends BaseApiClass {
             }
         }
         return false;
+    }
+
+    private static long configuredLong(String key, String fallback) {
+        String systemValue = System.getProperty(key);
+        if (systemValue != null) {
+            return Long.parseLong(systemValue);
+        }
+        String envValue = System.getenv(key);
+        if (envValue != null) {
+            return Long.parseLong(envValue);
+        }
+
+        Properties properties = new Properties();
+        try {
+            properties.load(Files.newInputStream(Paths.get("src/test/resources/test.properties")));
+            return Long.parseLong(properties.getProperty(key, fallback));
+        } catch (IOException e) {
+            return Long.parseLong(fallback);
+        }
     }
 }

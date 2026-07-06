@@ -48,6 +48,10 @@ public class TestAccounts {
         return new TestAccounts(Collections.unmodifiableList(parsed));
     }
 
+    public static TestAccounts empty() {
+        return new TestAccounts(Collections.emptyList());
+    }
+
     public List<TestAccount> byRole(String role) {
         return accounts.stream()
                 .filter(account -> role.equals(account.getRole()))

@@ -22,7 +22,8 @@ public class ProfilePage extends BasePage {
             + "[contains(normalize-space(.),'Aceptar')"
             + " or contains(normalize-space(.),'Accept')"
             + " or contains(normalize-space(.),'OK')]");
-    private static final By USERNAME_INPUT = By.cssSelector("input");
+    private static final By USERNAME_INPUT = By.cssSelector(
+            "input[placeholder='Escribe tu nombre'],input[placeholder='Enter your name']");
     private static final By SAVE_BUTTON = anyInteractiveText("Guardar Cambios", "Save Changes");
     private static final By STATUS_FEEDBACK = By.xpath(
             "//*[contains(translate(normalize-space(.),"
@@ -33,13 +34,22 @@ public class ProfilePage extends BasePage {
                     + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'profile updated')"
                     + " or contains(translate(normalize-space(.),"
                     + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
-                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'error')"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'fallo de seguridad')"
                     + " or contains(translate(normalize-space(.),"
                     + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
-                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'caracter')"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'security failure')"
                     + " or contains(translate(normalize-space(.),"
                     + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
-                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'character')]");
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'error al eliminar datos')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'error deleting data')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'nombre de usuario debe tener')"
+                    + " or contains(translate(normalize-space(.),"
+                    + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+                    + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'username must be between')]");
 
     public ProfilePage(WebDriver driver) {
         super(driver);

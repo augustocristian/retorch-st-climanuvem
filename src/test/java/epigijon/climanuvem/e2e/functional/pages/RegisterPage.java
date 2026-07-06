@@ -67,9 +67,11 @@ public class RegisterPage extends BasePage {
                     + " or contains(translate(normalize-space(.),"
                     + "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
                     + "'abcdefghijklmnopqrstuvwxyzáéíóúüñ'), 'requerid')]");
+    private final String frontendUrl;
 
-    public RegisterPage(WebDriver driver) {
+    public RegisterPage(WebDriver driver, String frontendUrl) {
         super(driver);
+        this.frontendUrl = frontendUrl;
         wait.until(ExpectedConditions.visibilityOfElementLocated(USERNAME_INPUT));
     }
 
@@ -124,7 +126,7 @@ public class RegisterPage extends BasePage {
 
     public HomePage waitForHome() {
         wait.until(ExpectedConditions.visibilityOfElementLocated(HOME_MARKER));
-        return new HomePage(driver);
+        return new HomePage(driver, frontendUrl);
     }
 
     public RegisterPage waitForVerificationDialog() {
@@ -140,14 +142,7 @@ public class RegisterPage extends BasePage {
     /** Navigates back to the Login form. */
     public LoginPage clickLoginLink() {
         click(LOGIN_LINK);
-        return new LoginPage(driver);
-    }
-
-    private boolean hasInvalidRequiredInput() {
-        Object invalidCount = runScript(
-                "return Array.from(document.querySelectorAll('input'))"
-                        + ".filter(function(input) { return input.required && !input.checkValidity(); }).length;");
-        return invalidCount instanceof Number && ((Number) invalidCount).intValue() > 0;
+        return new LoginPage(driver, frontendUrl);
     }
 
     private WebElement lastVisibleSubmitButton() {

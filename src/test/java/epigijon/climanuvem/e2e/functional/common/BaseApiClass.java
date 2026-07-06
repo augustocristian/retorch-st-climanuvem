@@ -32,7 +32,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Random;
 import java.util.Properties;
 
 /**
@@ -54,7 +53,7 @@ public class BaseApiClass {
     protected static String testToken;
     protected static Properties properties;
     protected static String tJobName;
-    private static final int HTTP_TIMEOUT_MS = 10000;
+    private static int httpTimeoutMs;
 
     protected static class ApiResponse {
         private final int statusCode;
@@ -90,12 +89,14 @@ public class BaseApiClass {
                 ? System.getProperty("TEST_TOKEN")
                 : System.getenv("TEST_TOKEN");
         testToken = envToken != null ? envToken : properties.getProperty("TEST_TOKEN");
+        httpTimeoutMs = Integer.parseInt(configuredValue("HTTP_TIMEOUT_MS", "10000"));
 
         log.info("API base URL: {}", sutUrl);
+        log.info("HTTP timeout: {} ms", httpTimeoutMs);
         RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectTimeout(HTTP_TIMEOUT_MS)
-                .setConnectionRequestTimeout(HTTP_TIMEOUT_MS)
-                .setSocketTimeout(HTTP_TIMEOUT_MS)
+                .setConnectTimeout(httpTimeoutMs)
+                .setConnectionRequestTimeout(httpTimeoutMs)
+                .setSocketTimeout(httpTimeoutMs)
                 .build();
         httpClient = HttpClients.custom()
                 .setDefaultRequestConfig(requestConfig)
@@ -271,11 +272,10 @@ public class BaseApiClass {
 
     protected JsonObject findAnalysisInHistory(int analysisId) throws IOException {
         JsonArray history = getJsonArrayAuth(analysisUrl("/history"));
-        String expectedId = String.valueOf(analysisId);
         for (JsonElement element : history) {
             if (element.isJsonObject()) {
                 JsonObject object = element.getAsJsonObject();
-                if (object.has("id") && expectedId.equals(object.get("id").getAsString())) {
+                if (object.has("id") && object.get("id").getAsInt() == analysisId) {
                     return object;
                 }
             }
@@ -371,9 +371,13 @@ public class BaseApiClass {
         return new byte[0];
     }
 
-    protected static byte[] createTooLargePayload() {
+    protected static byte[] createTooLargePayload() throws IOException {
         byte[] payload = new byte[(5 * 1024 * 1024) + 1];
-        new Random(42).nextBytes(payload);
+        byte[] validJpeg = createTestImage();
+        System.arraycopy(validJpeg, 0, payload, 0, validJpeg.length);
+        for (int i = validJpeg.length; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
         return payload;
     }
 
@@ -405,6 +409,18 @@ public class BaseApiClass {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(img, "jpg", baos);
         return baos.toByteArray();
+    }
+
+    private static String configuredValue(String key, String fallback) {
+        String systemValue = System.getProperty(key);
+        if (systemValue != null) {
+            return systemValue;
+        }
+        String envValue = System.getenv(key);
+        if (envValue != null) {
+            return envValue;
+        }
+        return properties.getProperty(key, fallback);
     }
 
     private static void sleepQuietly(long millis) {

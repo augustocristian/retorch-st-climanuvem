@@ -17,14 +17,17 @@ import org.junit.jupiter.params.provider.MethodSource;
 class TestLoginSystem extends BaseLoggedClass {
 
     @Test
-    @DisplayName("BASE - Guest and Google login flows are available")
-    void guestAndGoogleLoginFlowsAreAvailable() {
+    @DisplayName("BASE - Guest login reaches Home")
+    void guestLoginReachesHome() {
         HomePage guestHomePage = loginAsGuest();
         Assertions.assertTrue(
                 guestHomePage.isWelcomeMessageVisible(),
                 "Guest login must reach the Home screen");
-        guestHomePage.clickLogout();
+    }
 
+    @Test
+    @DisplayName("BASE - Google login provider flow is available")
+    void googleLoginProviderFlowIsAvailable() {
         LoginPage loginPage = onWelcomePage().clickLoginButton();
 
         Assertions.assertAll(
@@ -55,26 +58,29 @@ class TestLoginSystem extends BaseLoggedClass {
     @DisplayName("3 - Invalid email/password login attempts are rejected")
     void invalidEmailPasswordLoginAttemptsAreRejected(TestAccount account) {
         TestAccount unknown = unknownAccount();
+        LoginPage loginPage = onWelcomePage().clickLoginButton();
 
         Assertions.assertAll(
-                () -> assertLoginRejected(account.getEmail(), "",
+                () -> assertLoginRejected(loginPage, account.getEmail(), "",
                         "Existing email with empty password must remain on Login and show validation or an error"),
-                () -> assertLoginRejected(unknown.getEmail(), unknown.getPassword(),
+                () -> assertLoginRejected(loginPage, unknown.getEmail(), unknown.getPassword(),
                         "Unknown email with empty password must remain on Login and show validation or an error"),
-                () -> assertLoginRejected("", "",
+                () -> assertLoginRejected(loginPage, "", "",
                         "Empty credentials must remain on Login and show validation"),
-                () -> assertLoginRejected(account.getEmail(), unknown.getPassword(),
+                () -> assertLoginRejected(loginPage, account.getEmail(), unknown.getPassword(),
                         "Existing email with incorrect password must remain on Login and show an error")
         );
     }
 
-    private void assertLoginRejected(String email, String password, String message) {
-        LoginPage loginPage = onWelcomePage()
-                .clickLoginButton()
-                .login(email, password);
+    private void assertLoginRejected(LoginPage loginPage, String email, String password, String message) {
+        loginPage.login(email, password);
 
-        Assertions.assertTrue(
-                loginPage.waitForLoginFailure().hasLoginErrorOrValidation(),
-                message);
+        try {
+            Assertions.assertTrue(
+                    loginPage.waitForLoginFailure().hasLoginErrorOrValidation(),
+                    message);
+        } finally {
+            loginPage.closeLoginFeedbackIfPresent();
+        }
     }
 }

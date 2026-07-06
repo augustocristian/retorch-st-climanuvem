@@ -215,13 +215,13 @@ retorch-st-climanuvem/
 LOCALHOST_URL=http://localhost:8000
 FRONTEND_URL=http://localhost:5173
 TEST_TOKEN=test-token-climanuvem
-LOGIN_UNKNOWN_EMAIL=missing-user@example.com
-LOGIN_WRONG_PASSWORD=wrong-password
-PROFILE_LOGIN_EMAIL=
-PROFILE_LOGIN_PASSWORD=
+HTTP_TIMEOUT_MS=10000
+ANALYSIS_TIMEOUT_MS=360000
+ACCOUNTS_FILE=src/test/resources/accounts.local.csv
+REGISTER_EMAIL_DOMAIN=gmail.com
 FIREBASE_WEB_API_KEY=
 ```
-All values can be overridden via system properties (`-DSUT_URL=…`, `-DTEST_TOKEN=…`, `-DFRONTEND_URL=…`) or matching environment variables. The email success cases in `TestLoginSystem` require `LOGIN_EXISTING_EMAIL` and `LOGIN_EXISTING_PASSWORD`; `TestRegisterSystem` uses `LOGIN_EXISTING_EMAIL` for the "email already in use" case. `TestProfileSystem` uses `PROFILE_LOGIN_EMAIL` and `PROFILE_LOGIN_PASSWORD` for authenticated profile tests, falling back to the login credentials when profile-specific values are not set. The successful registration case expects the email-verification dialog, and if `FIREBASE_WEB_API_KEY` is configured, the created account is deleted through Firebase Auth REST after the test.
+All values can be overridden via system properties (`-DSUT_URL=…`, `-DTEST_TOKEN=…`, `-DFRONTEND_URL=…`) or matching environment variables. Selenium account data is loaded from `ACCOUNTS_FILE`. The successful registration case expects the email-verification dialog, and if `FIREBASE_WEB_API_KEY` is configured, the created account is deleted through Firebase Auth REST after the test.
 
 ### `src/test/resources/log4j2.xml`
 Logs to `target/testlogs/log${sys:TJOB_NAME:-testinglocal}-test.log`. The `epigijon` logger runs at DEBUG level.

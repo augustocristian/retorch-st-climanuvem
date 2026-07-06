@@ -4,6 +4,7 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -61,8 +62,12 @@ abstract class BasePage {
 
     /** Clears and types into an already located input element. */
     protected void fillElement(WebElement el, String text) {
-        el.clear();
-        el.sendKeys(text);
+        try {
+            el.clear();
+            el.sendKeys(text);
+        } catch (WebDriverException e) {
+            setInputValue(el, text);
+        }
     }
 
     /** Returns the current {@code value} attribute of an input element. */
@@ -83,6 +88,26 @@ abstract class BasePage {
     /** Runs JavaScript and returns its raw value. */
     protected Object runScript(String script, Object... args) {
         return ((JavascriptExecutor) driver).executeScript(script, args);
+    }
+
+    /** Sets an input value through the native property setter and notifies React. */
+    protected void setInputValue(WebElement el, String text) {
+        runScript(
+                "var el = arguments[0];"
+                        + "var value = arguments[1];"
+                        + "var setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;"
+                        + "setter.call(el, value);"
+                        + "el.dispatchEvent(new Event('input', {bubbles: true}));"
+                        + "el.dispatchEvent(new Event('change', {bubbles: true}));",
+                el, text);
+    }
+
+    /** True when any required input currently fails browser-side validation. */
+    protected boolean hasInvalidRequiredInput() {
+        Object invalidCount = runScript(
+                "return Array.from(document.querySelectorAll('input'))"
+                        + ".filter(function(input) { return input.required && !input.checkValidity(); }).length;");
+        return invalidCount instanceof Number && ((Number) invalidCount).intValue() > 0;
     }
 
     // ── Shared locator factories ──────────────────────────────────────────────

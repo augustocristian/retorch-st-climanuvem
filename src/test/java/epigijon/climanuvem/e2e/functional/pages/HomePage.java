@@ -17,9 +17,11 @@ public class HomePage extends BasePage {
     private static final By ANALYZE_CARD = byPartialText("Analizar Imagen");
     private static final By HISTORY_CARD = byPartialText("Historial");
     private static final By LOGOUT_CARD = byPartialText("Cerrar Sesión");
+    private final String frontendUrl;
 
-    public HomePage(WebDriver driver) {
+    public HomePage(WebDriver driver, String frontendUrl) {
         super(driver);
+        this.frontendUrl = frontendUrl;
         wait.until(ExpectedConditions.visibilityOfElementLocated(WELCOME_MESSAGE));
         wait.until(ExpectedConditions.visibilityOfElementLocated(ANALYZE_CARD));
     }
@@ -60,8 +62,7 @@ public class HomePage extends BasePage {
      * by React Native Web.
      */
     public ProfilePage openProfileRouteDirectly() {
-        String baseUrl = driver.getCurrentUrl().split("#")[0].replaceAll("/home/?$", "");
-        driver.get(baseUrl + "/profile");
+        driver.get(normalizedFrontendUrl() + "/profile");
         waitUntil(webDriver -> driver.getCurrentUrl().contains("/profile"));
         return new ProfilePage(driver);
     }
@@ -69,6 +70,10 @@ public class HomePage extends BasePage {
     /** Clicks "Cerrar Sesión" and waits for the Welcome screen to re-appear. */
     public WelcomePage clickLogout() {
         click(LOGOUT_CARD);
-        return new WelcomePage(driver);
+        return new WelcomePage(driver, frontendUrl);
+    }
+
+    private String normalizedFrontendUrl() {
+        return frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
     }
 }

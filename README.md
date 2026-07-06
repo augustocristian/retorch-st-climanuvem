@@ -12,7 +12,7 @@ Covers two test layers:
 
 | Tool | Minimum version |
 |---|---|
-| Java (JDK) | 8 |
+| Java (JDK) | 11 |
 | Maven | 3.8 |
 | Docker + Docker Compose | 24 |
 | Git | any recent |
@@ -142,6 +142,8 @@ Roles:
 | `SUT_URL` | `http://localhost:8000` | Backend base URL |
 | `FRONTEND_URL` | `http://localhost:5173` | Frontend base URL (Selenium tests) |
 | `TEST_TOKEN` | `test-token-climanuvem` | Auth token injected by API tests |
+| `HTTP_TIMEOUT_MS` | `10000` | HTTP client timeout for API tests |
+| `ANALYSIS_TIMEOUT_MS` | `360000` | Maximum wait for real image-analysis completion |
 | `ACCOUNTS_FILE` | `src/test/resources/accounts.local.csv` | CSV file with Selenium test accounts |
 | `REGISTER_EMAIL_DOMAIN` | `gmail.com` | Domain used for unique registration-test emails |
 | `FIREBASE_WEB_API_KEY` | _(unset)_ | Optional Firebase Web API key used to delete the account created by `TestRegisterSystem` |
