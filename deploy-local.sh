@@ -4,18 +4,25 @@
 # Usage:
 #   ./deploy-local.sh              — clone SUT (if needed) and start on default ports
 #   ./deploy-local.sh --port 9000  — use a custom backend port (frontend stays at 5173)
-#   ./deploy-local.sh --down       — tear down the running deployment
+#   ./deploy-local.sh --with-ollama — start worker + Ollama for real image-analysis tests
+#   ./deploy-local.sh --down       — tear down containers, network, and test volumes
 
 set -euo pipefail
 
 SUT_REPO="https://gitlab.com/HP-SCDS/Observatorio/2025-2026/climanuvem/epi-climanuvem.git"
-SUT_DIR="epi-climanuvem"
+SUT_DIR="../epi-climanuvem"
 COMPOSE_FILE="docker-compose.test.yml"
+OLLAMA_COMPOSE_FILE="docker-compose.ollama-test.yml"
 PROJECT_NAME="climanuvem-test"
 MAX_WAIT_SECS=180
 POLL_INTERVAL=5
 PORT=8000
 DOWN=false
+WITH_OLLAMA=false
+OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
+POSTGRES_VOLUME="${PROJECT_NAME}_postgres_test_data"
+OLLAMA_VOLUME="${PROJECT_NAME}_ollama_test_data"
+export OLLAMA_MODEL
 
 step() { echo "[>] $*"; }
 ok()   { echo "[+] $*"; }
@@ -25,10 +32,18 @@ fail() { echo "[!] $*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --down)   DOWN=true; shift ;;
+        --with-ollama) WITH_OLLAMA=true; shift ;;
         --port)   PORT="$2"; shift 2 ;;
-        *) fail "Unknown argument: $1. Valid options: --down, --port <number>" ;;
+        *) fail "Unknown argument: $1. Valid options: --down, --with-ollama, --port <number>" ;;
     esac
 done
+
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+if $WITH_OLLAMA; then
+    COMPOSE_ARGS+=(-f "$OLLAMA_COMPOSE_FILE")
+fi
+TEARDOWN_COMPOSE_ARGS=(-f "$COMPOSE_FILE" -f "$OLLAMA_COMPOSE_FILE")
+export BACKEND_PORT="$PORT"
 
 # ── Prerequisites ──────────────────────────────────────────────────────────────
 step "Checking prerequisites..."
@@ -40,7 +55,15 @@ ok "Prerequisites satisfied."
 # ── Teardown mode ──────────────────────────────────────────────────────────────
 if $DOWN; then
     step "Tearing down project '$PROJECT_NAME'..."
-    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" down --volumes
+    docker compose "${TEARDOWN_COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down --volumes --remove-orphans
+    for volume in "$POSTGRES_VOLUME" "$OLLAMA_VOLUME"; do
+        step "Ensuring test volume '$volume' is removed..."
+        if docker volume rm "$volume" >/dev/null 2>&1; then
+            ok "Removed test volume '$volume'."
+        else
+            ok "Test volume '$volume' was not present."
+        fi
+    done
     ok "Teardown complete."
     exit 0
 fi
@@ -49,7 +72,7 @@ fi
 step "Checking for SUT in '$SUT_DIR'..."
 if [[ ! -d "$SUT_DIR" ]]; then
     step "Cloning $SUT_REPO..."
-    git clone "$SUT_REPO"
+    git clone "$SUT_REPO" "$SUT_DIR"
     ok "Cloned '$SUT_DIR'."
 else
     ok "'$SUT_DIR' already present, skipping clone."
@@ -57,13 +80,19 @@ fi
 
 # ── Build images ──────────────────────────────────────────────────────────────
 step "Building Docker images..."
-docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" build
+docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" build
 ok "Images built."
 
 # ── Start containers ──────────────────────────────────────────────────────────
 step "Starting containers (project: '$PROJECT_NAME')..."
-docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" up -d
+docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" up -d
 ok "Containers started."
+
+if $WITH_OLLAMA; then
+    step "Ensuring Ollama model '$OLLAMA_MODEL' is available..."
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" exec -T ollama ollama pull "$OLLAMA_MODEL"
+    ok "Ollama model '$OLLAMA_MODEL' is ready."
+fi
 
 # ── Wait for backend ──────────────────────────────────────────────────────────
 BACKEND_URL="http://localhost:$PORT"
@@ -83,8 +112,9 @@ done
 
 if ! $ready; then
     echo "[!] Backend did not become healthy within ${MAX_WAIT_SECS}s." >&2
-    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" logs --tail 50
-    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" down --volumes
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" logs --tail 50
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down
+    docker volume rm "$POSTGRES_VOLUME" >/dev/null 2>&1 || true
     exit 1
 fi
 ok "Backend is ready at $BACKEND_URL"
@@ -112,7 +142,8 @@ if $ready; then
     ok "  Frontend → $FRONTEND_URL"
 else
     echo "[!] Frontend did not become healthy within ${MAX_WAIT_SECS}s." >&2
-    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" logs --tail 50
-    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" down --volumes
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" logs --tail 50
+    docker compose "${COMPOSE_ARGS[@]}" -p "$PROJECT_NAME" down
+    docker volume rm "$POSTGRES_VOLUME" >/dev/null 2>&1 || true
     exit 1
 fi

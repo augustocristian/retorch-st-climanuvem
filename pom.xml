@@ -14,8 +14,7 @@
 	</organization>
 
 	<properties>
-		<maven.compiler.source>1.8</maven.compiler.source>
-		<maven.compiler.target>1.8</maven.compiler.target>
+		<maven.compiler.release>11</maven.compiler.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
 		<slf4j-api.version>2.0.18</slf4j-api.version>
@@ -27,8 +26,6 @@
 		<junit-jupiter-api.version>6.0.3</junit-jupiter-api.version>
 
 		<selenium-java.version>4.44.0</selenium-java.version>
-
-		<selema.version>4.0.2</selema.version>
 
 		<retorch-tool.version>1.2.0</retorch-tool.version>
 
@@ -54,15 +51,15 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.seleniumhq.selenium</groupId>
-			<artifactId>selenium-java</artifactId>
-			<version>${selenium-java.version}</version>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-params</artifactId>
+			<version>${junit-jupiter-api.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>io.github.javiertuya</groupId>
-			<artifactId>selema</artifactId>
-			<version>${selema.version}</version>
+			<groupId>org.seleniumhq.selenium</groupId>
+			<artifactId>selenium-java</artifactId>
+			<version>${selenium-java.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

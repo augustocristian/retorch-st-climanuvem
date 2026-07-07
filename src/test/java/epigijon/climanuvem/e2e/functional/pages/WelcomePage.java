@@ -16,9 +16,11 @@ public class WelcomePage extends BasePage {
     private static final By LOGIN_BUTTON  = byPartialText("Iniciar Sesión");
     private static final By APP_TITLE     = byPartialText("ClimaNuvem");
     private static final By TAGLINE       = byPartialText("Meteorólogo de bolsillo");
+    private final String frontendUrl;
 
-    public WelcomePage(WebDriver driver) {
+    public WelcomePage(WebDriver driver, String frontendUrl) {
         super(driver);
+        this.frontendUrl = frontendUrl;
         wait.until(ExpectedConditions.visibilityOfElementLocated(GUEST_BUTTON));
     }
 
@@ -28,13 +30,14 @@ public class WelcomePage extends BasePage {
     public boolean isTaglineVisible()         { return isPresent(TAGLINE);      }
     public boolean isLoginButtonPresent()     { return isPresent(LOGIN_BUTTON); }
     public boolean isGuestButtonPresent()     { return isPresent(GUEST_BUTTON); }
+    public boolean isHomeVisible()            { return isPresent(byPartialText("Bienvenido")); }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
     /** Clicks "Iniciar Sesión" and waits for the Login form to appear. */
     public LoginPage clickLoginButton() {
         click(LOGIN_BUTTON);
-        return new LoginPage(driver);
+        return new LoginPage(driver, frontendUrl);
     }
 
     /**
@@ -43,6 +46,6 @@ public class WelcomePage extends BasePage {
      */
     public HomePage clickAnonymousLogin() {
         click(GUEST_BUTTON);
-        return new HomePage(driver);
+        return new HomePage(driver, frontendUrl);
     }
 }
